@@ -1,3 +1,1152 @@
+// import React, { useState, useEffect } from "react";
+// import { Link, useLocation, useNavigate } from "react-router-dom";
+// import {
+//   Menu,
+//   X,
+//   ChevronDown,
+//   ChevronRight,
+//   BarChart2,
+//   Layers,
+//   BriefcaseBusiness,
+//   Users,
+//   Home,
+//   LayoutDashboard,
+//   Star,
+//   Clock,
+//   Search,
+//   Settings,
+//   HomeIcon,
+//   Calculator,
+// } from "lucide-react";
+
+// const NavigationSidebar = ({ canView }) => {
+//   const { pathname } = useLocation();
+//   const navigate = useNavigate();
+
+//   // State for which main module is active/open in the flyout
+//   const [activeModule, setActiveModule] = useState(null);
+//   const [searchTerm, setSearchTerm] = useState("");
+//   const [isRailHovered, setIsRailHovered] = useState(false);
+//   const [openSubMenus, setOpenSubMenus] = useState({});
+
+//   const HIDDEN_FEATURES =
+//     import.meta.env.VITE_HIDE?.replace(/["\s]/g, "").split(",") || [];
+//   const isHidden = (featureName) => HIDDEN_FEATURES.includes(featureName);
+
+//   const toggleSubMenu = (key) => {
+//     setOpenSubMenus((prev) => ({
+//       ...prev,
+//       [key]: !prev[key],
+//     }));
+//   };
+
+//   // Define the structure based on your current logic
+//   const modules = [
+//     {
+//       id: "planning",
+//       label: "Planning",
+//       icon: <BarChart2 size={20} />,
+//       items: [
+//         { label: "Project Planning", path: "/dashboard/project-budget-status" },
+//         {
+//           label: "Reporting",
+//           path: "/dashboard/project-report",
+//           permission: "projectReport",
+//         },
+//         {
+//           label: "Mass Utility",
+//           path: "/dashboard/mass-utility",
+//           permission: "massUtility",
+//         },
+//         { label: "Pricing", path: "/dashboard/pricing", permission: "pricing" },
+//         {
+//           label: "Financial Report",
+//           path: "/dashboard/financial-report",
+//           permission: "financialReport",
+//         },
+//       ],
+//     },
+//     {
+//       id: "business",
+//       label: "New Business",
+//       icon: <BriefcaseBusiness size={20} />,
+//       items: [
+//         {
+//           label: "Import Opportunity",
+//           path: "/dashboard/import-opportunity",
+//           permission: "impOpportunity",
+//         },
+//         {
+//           label: "Manage New Business",
+//           path: "/dashboard/new-business",
+//           permission: "manageNewBusiness",
+//         },
+//         {
+//           label: "Transfer Project Budget",
+//           path: "/dashboard/create-project-budget",
+//           permission: "transferUtility",
+//         },
+//       ],
+//     },
+//     {
+//       id: "manage",
+//       label: "Manage",
+//       icon: <Users size={20} />,
+//       items: [
+//         {
+//           label: "Manage Groups",
+//           path: "/dashboard/manage-groups",
+//           permission: "manageGroups",
+//         },
+//         {
+//           label: "Manage Users",
+//           path: "/dashboard/manage-users",
+//           permission: "manageUser",
+//         },
+//         { label: "Manage Accounts", path: "/dashboard/account-master" },
+//         { label: "Manage Orgs", path: "/dashboard/org-master" },
+//         { label: "Manage Employees", path: "/dashboard/employee-master" },
+//         {
+//           label: "Manage Project Roles",
+//           path: "/dashboard/manage-project-role",
+//         },
+//         { label: "Manage Revenue", path: "/dashboard/manage-revenue" },
+//         {
+//           label: "Manage Revenue Formulas",
+//           path: "/dashboard/manage-revenue-formulas",
+//         },
+//         {
+//           label: "Print Project Revenue & Billing Formulas",
+//           path: "/dashboard/print-revenue-billing-formulas",
+//         },
+//         {
+//           label: "Manage Rate Sequence Orders",
+//           path: "/dashboard/manage-rate-sequence-orders",
+//         },
+//         { label: "Manage Cost of Goods Sold", path: "/dashboard/manage-cogs" },
+//         {
+//           label: "Manage Alternate Project Revenue Profiles",
+//           path: "/dashboard/manage-alternate-project-revenue-profiles",
+//         },
+//         {
+//           label: "Manage Alternate Revenue Profile Prior Year History",
+//           path: "/dashboard/manage-alternate-revenue-profile-prior-year-history",
+//         },
+//         {
+//           label: "Manage Project Revenue Calculation Value History",
+//           path: "/dashboard/manage-project-revenue-calculation-value-history",
+//         },
+//         {
+//           label: "Manage Revenue Evaluation Info and Disclosures",
+//           path: "/dashboard/manage-revenue-evaluation-info-and-disclosures",
+//         },
+//         {
+//           label: "Manage Revenue Evaluation Status Codes",
+//           path: "/dashboard/manage-revenue-evaluation-status-codes",
+//         },
+//         {
+//           label: "Manage Performance Obligation Type Codes",
+//           path: "/dashboard/manage-performance-obligation-type-codes",
+//         },
+//         {
+//           label: "Manage Total Ceilings",
+//           path: "/dashboard/manage-total-ceilings",
+//         },
+//         {
+//           label: "Manage Burden Cost Ceilings",
+//           path: "/dashboard/manage-burden-cost-ceilings",
+//         },
+//         {
+//           label: "Manage Direct Cost Ceilings",
+//           path: "/dashboard/manage-direct-cost-ceilings",
+//         },
+//         {
+//           label: "Manage Burden Fee Overrides",
+//           path: "/dashboard/manage-burden-fee-overrides",
+//         },
+//         {
+//           label: "Manage Cost Fee Overrides",
+//           path: "/dashboard/manage-cost-fee-overrides",
+//         },
+//         {
+//           label: "Manage Multiplier Overrides",
+//           path: "/dashboard/manage-multiplier-overrides",
+//         },
+//         {
+//           label: "Manage Hours Ceilings",
+//           path: "/dashboard/manage-hours-ceilings",
+//         },
+//         {
+//           label: "Manage Employee Hours Ceilings",
+//           path: "/dashboard/manage-employee-hours-ceilings",
+//         },
+//         {
+//           label: "Manage Vendor Hours Ceilings",
+//           path: "/dashboard/manage-vendor-hours-ceilings",
+//         },
+//         {
+//           label: "Project Labor Categories (PLC)",
+//           path: "/dashboard/manage-plc",
+//         },
+//         {
+//           label: "Link PLCs to Projects",
+//           path: "/dashboard/link-plc-to-projects",
+//         },
+//         {
+//           label: "Link PLC Rates to Projects",
+//           path: "/dashboard/link-plc-rates-to-projects",
+//         },
+//       ],
+//     },
+//     {
+//       id: "accounts",
+//       label: "Accounting",
+//       icon: <Calculator size={20} />,
+//       items: [
+//         {
+//           label: "General Ledger",
+//           subItems: [
+//             {
+//               label: "Company Calendar",
+//               subItems: [
+//                 {
+//                   label: "Fiscal Year",
+//                   path: "/dashboard/manage-fiscalyear",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Accounting Period",
+//                   path: "/dashboard/manage-accountingperiod",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Subperiod",
+//                   path: "/dashboard/manage-subperiod",
+//                   permission: "fiscalYear",
+//                 },
+//               ],
+//             },
+//             {
+//               label: "Organizations",
+//               subItems: [
+//                 {
+//                   label: "Organization Setup",
+//                   path: "/dashboard/org-master",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "User Define Label",
+//                   path: "/dashboard/userdefinedlabels/organization",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "User Define Information",
+//                   path: "/dashboard/userdefinedinformation/organization",
+//                   permission: "organization",
+//                 },
+//               ],
+//             },
+//             {
+//               label: "Reorganization",
+//               subItems: [
+//                 {
+//                   label: "Reorganization Setup",
+//                   path: "/dashboard/reorganization/reorg-setup",
+//                   permission: "reorganization",
+//                 },
+//                 {
+//                   label: "Link Reorganization/Organizations",
+//                   path: "/dashboard/reorganization/link-org-reorg",
+//                   permission: "reorganization",
+//                 },
+//                 {
+//                   label: "Mass Link Reorganization/Organizations",
+//                   path: "/dashboard/reorganization/masslink-org-reorg",
+//                   permission: "reorganization",
+//                 },
+//               ],
+//             },
+//             {
+//               label: "Accounts",
+//               subItems: [
+//                 {
+//                   label: "Accounts",
+//                   path: "/dashboard/account-master",
+//                   permission: "account",
+//                 },
+//                 {
+//                   label: "Link Accounts/Organizations",
+//                   path: "/dashboard/account-org-link",
+//                   permission: "account",
+//                 },
+//                 {
+//                   label: "Mass Link Accounts/Organizations",
+//                   path: "/dashboard/accounts-orgs-link",
+//                   permission: "account",
+//                 },
+//                 {
+//                   label: "User Define Label",
+//                   path: "/dashboard/userdefinedlabels/account",
+//                   permission: "account",
+//                 },
+//                 {
+//                   label: "User Define Information",
+//                   path: "/dashboard/userdefinedinformation/account",
+//                   permission: "account",
+//                 },
+//               ],
+//             },
+//             // {
+//             //   label: "Vendor",
+//             //   subItems: [
+//             //     {
+//             //       label: "Vendor",
+//             //       path: "/dashboard/vendor/manage-vendors",
+//             //       permission: "vendor",
+//             //     },
+//             //     {
+//             //       label: "User Define Label",
+//             //       path: "/dashboard/userdefinedlabels/vendor",
+//             //       permission: "vendor",
+//             //     },
+//             //     {
+//             //       label: "User Define Information",
+//             //       path: "/dashboard/userdefinedinformation/vendor",
+//             //       permission: "vendor",
+//             //     },
+//             //   ],
+//             // },
+//             {
+//               label: "Employee",
+//               subItems: [
+//                 {
+//                   label: "User Define Label",
+//                   path: "/dashboard/userdefinedlabels/employee",
+//                   permission: "employee",
+//                 },
+//                 {
+//                   label: "User Define Information",
+//                   path: "/dashboard/userdefinedinformation/employee",
+//                   permission: "employee",
+//                 },
+//               ],
+//             },
+//             {
+//               label: "Reference Number",
+//               subItems: [
+//                 {
+//                   label: "Reference",
+//                   path: "/dashboard/manage-reference",
+//                   permission: "employee",
+//                 },
+//                 // {
+//                 //   label: "User Define Information",
+//                 //   path: "/dashboard/userdefinedinformation/employee",
+//                 //   permission: "employee",
+//                 // },
+//               ],
+//             },
+
+//             // {
+//             //   label: "Project",
+//             //   subItems: [
+//             //     {
+//             //       label: "Project",
+//             //       path: "/dashboard/project-master",
+//             //       permission: "project",
+//             //     },
+//             //     {
+//             //       label: "project Template",
+//             //       path: "/dashboard/manage-proj-template",
+//             //       permission: "project",
+//             //     },
+//             //   ],
+//             // },
+//             // {
+//             //   label: "Prospective Vendor",
+//             //   subItems: [
+//             //     {
+//             //       label: "Prospective Vendor",
+//             //       path: "/dashboard/prospective-vendor/manage-prospective-vendor",
+//             //       permission: "prospectiveVendor",
+//             //     },
+//             //     {
+//             //       label: "Approve Prospective Vendor",
+//             //       path: "/dashboard/prospective-vendor/approve-prospective-vendor",
+//             //       permission: "prospectiveVendor",
+//             //     },
+//             //   ],
+//             // },
+//           ],
+//         },
+//         {
+//           label: "Accounts Payable",
+//           subItems: [
+//             // {
+//             //   label: "Vendor",
+//             //   subItems: [
+//             //     // {
+//             //     //   label: "Fiscal Year",
+//             //     //   path: "/dashboard/manage-fiscalyear",
+//             //     //   permission: "fiscalYear",
+//             //     // },
+//             //     // {
+//             //     //   // label: "Accounting Period",
+//             //     //   path: "/dashboard/manage-accountingperiod",
+//             //     //   permission: "fiscalYear",
+//             //     // },
+//             //     // {
+//             //     //   label: "Subperiod",
+//             //     //   path: "/dashboard/manage-subperiod",
+//             //     //   permission: "fiscalYear",
+//             //     // },
+//             //   ],
+//             // },
+
+//             {
+//               label: "Accounts Payable Controls",
+//               subItems: [
+//                 {
+//                   label: "Configure Accounts Payable Settings",
+//                   path: "/dashboard/accts-payable/accounts-payable-configure",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Configure Check/EFT Email Settings",
+//                   path: "/dashboard/accts-payable/check-email-setting",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Accounts Payable Accounts",
+//                   path: "/dashboard/accts-payable/accounts-payable-settings",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Cash Accounts",
+//                   path: "/dashboard/accts-payable/cash-accounts",
+//                   permission: "organization",
+//                 },
+//                 // {
+//                 //   label: "Cash Requirements Rpt Supplemental Amounts",
+//                 //   path: "/dashboard/accts-payable/cash-supp-amounts",
+//                 //   permission: "organization",
+//                 // },
+//                 {
+//                   label: "Configure Accounts Payable Voucher Settings",
+//                   path: "/dashboard/accts-payable/accts-payable-voucher",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Configure Purchase Order Voucher Settings",
+//                   path: "/dashboard/accts-payable/purchas-ord-vouch-sett",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Configure Voucher Approver Settings",
+//                   path: "/dashboard/accts-payable/voucher-approver-sett",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Recurring A/P Voucher Codes",
+//                   path: "/dashboard/accts-payable/recc-apV-code",
+//                   permission: "organization",
+//                 },
+//                 // {
+//                 //   label: "Credit Card Import Information",
+//                 //   path: "/dashboard/accts-payable/credit-card-imp-info",
+//                 //   permission: "organization",
+//                 // },
+//                 {
+//                   label: "Insurance Carrier Information",
+//                   path: "/dashboard/accts-payable/insurance-carr-info",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Construction Industry Scheme Codes",
+//                   path: "/dashboard/accts-payable/const-industry-sch-code",
+//                   permission: "organization",
+//                 },
+//               ],
+//             },
+
+//             {
+//               label: "Vendor",
+//               subItems: [
+//                 {
+//                   label: "Prospective Vendor",
+//                   path: "/dashboard/vendor/manage-prospective-vendors",
+//                   permission: "vendor",
+//                 },
+//                 {
+//                   label: "Vendor",
+//                   path: "/dashboard/vendor/manage-vendors",
+//                   permission: "vendor",
+//                 },
+//                 {
+//                   label: "Approve Vendor",
+//                   path: "/dashboard/vendor/approve-vendor",
+//                   permission: "vendor",
+//                 },
+//                 {
+//                   label: "User Define Label",
+//                   path: "/dashboard/userdefinedlabels/vendor",
+//                   permission: "vendor",
+//                 },
+//                 {
+//                   label: "User Define Information",
+//                   path: "/dashboard/userdefinedinformation/vendor",
+//                   permission: "vendor",
+//                 },
+//                 {
+//                   label: "Vendor Employee",
+//                   path: "/dashboard/vendor-employee/manage-vendor-employee",
+//                   permission: "vendor",
+//                 },
+//                 {
+//                   label: "Approve Vendor Employee",
+//                   path: "/dashboard/vendor-employee/approve-vendor-employee",
+//                   permission: "vendor",
+//                 },
+//               ],
+//             },
+//             {
+//               label: "Vendor and Subcontractor Controls",
+//               subItems: [
+//                 {
+//                   label: "Configure Vendor Settings",
+//                   path: "/dashboard/vendSubControls/configVendSetting",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Manage Vendor Terms",
+//                   path: "/dashboard/vendSubControls/manage-vendor-terms",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Subcontractor Insurance Types",
+//                   path: "/dashboard/vendSubControls/insuranceTypes",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Subcontractor Bond Types",
+//                   path: "/dashboard/vendSubControls/bondTypes",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Prospective Vendor Rejection Reasons",
+//                   path: "/dashboard/vendSubControls/reasonCode",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Security Clearance Settings",
+//                   path: "/dashboard/vendSubControls/secClearSettings",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "SCI/SAP Clearance Codes",
+//                   path: "/dashboard/vendSubControls/scisapSettings",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Vendor Employee Aproval Groups",
+//                   path: "/dashboard/vendSubControls/vendoremplAprvlGrps",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Vendor Terms",
+//                   path: "/dashboard/manage-vendor-terms",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Profession Organizations",
+//                   path: "/dashboard/vendSubControls/profOrg",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Skill Codes",
+//                   path: "/dashboard/vendSubControls/skillCodes",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Skill Levels",
+//                   path: "/dashboard/vendSubControls/skillLevels",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Training Codes",
+//                   path: "/dashboard/vendSubControls/trainingCodes",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Training Sources",
+//                   path: "/dashboard/vendSubControls/trainingSource",
+//                   permission: "organization",
+//                 },
+//                 {
+//                   label: "Company Property",
+//                   path: "/dashboard/vendSubControls/companyProperty",
+//                   permission: "organization",
+//                 },
+//               ],
+//             },
+//             // {
+//             //   label: "Vendor Employee",
+//             //   subItems: [
+//             //     {
+//             //       label: "Vendor Employee",
+//             //       path: "/dashboard/vendor-employee/manage-vendor-employee",
+//             //       permission: "vendor",
+//             //     },
+//             //     {
+//             //       label: "Approve Vendor Employee",
+//             //       path: "/dashboard/vendor-employee/approve-vendor-employee",
+//             //       permission: "vendor",
+//             //     },
+//             //   ],
+//             // },
+//             // {
+//             //   label: "Prospective Vendors",
+//             //   subItems: [
+//             //     {
+//             //       label: "Prospective Vendor",
+//             //       path: "/dashboard/vendor/manage-prospective-vendors",
+//             //       permission: "vendor",
+//             //     },
+//             //   ],
+//             // },
+//             {
+//               label: "Employee",
+//               subItems: [
+//                 {
+//                   label: "User Define Label",
+//                   path: "/dashboard/userdefinedlabels/employee",
+//                   permission: "employee",
+//                 },
+//                 {
+//                   label: "User Define Information",
+//                   path: "/dashboard/userdefinedinformation/employee",
+//                   permission: "employee",
+//                 },
+//               ],
+//             },
+//             {
+//               label: "Reference Number",
+//               subItems: [
+//                 {
+//                   label: "Reference",
+//                   path: "/dashboard/manage-reference",
+//                   permission: "employee",
+//                 },
+//                 // {
+//                 //   label: "User Define Information",
+//                 //   path: "/dashboard/userdefinedinformation/employee",
+//                 //   permission: "employee",
+//                 // },
+//               ],
+//             },
+
+//             // {
+//             //   label: "Project",
+//             //   subItems: [
+//             //     {
+//             //       label: "Project",
+//             //       path: "/dashboard/project-master",
+//             //       permission: "project",
+//             //     },
+//             //     {
+//             //       label: "project Template",
+//             //       path: "/dashboard/manage-proj-template",
+//             //       permission: "project",
+//             //     },
+//             //   ],
+//             // },
+//             // {
+//             //   label: "Prospective Vendor",
+//             //   subItems: [
+//             //     {
+//             //       label: "Prospective Vendor",
+//             //       path: "/dashboard/prospective-vendor/manage-prospective-vendor",
+//             //       permission: "prospectiveVendor",
+//             //     },
+//             //     {
+//             //       label: "Approve Prospective Vendor",
+//             //       path: "/dashboard/prospective-vendor/approve-prospective-vendor",
+//             //       permission: "prospectiveVendor",
+//             //     },
+//             //   ],
+//             // },
+//           ],
+//         },
+//         {
+//           label: "Accounts Receivable",
+//           subItems: [
+//             {
+//               label: "Customers",
+//               subItems: [
+//                 {
+//                   label: "Customers",
+//                   path: "/dashboard/customer/manage-customer",
+//                   permission: "fiscalYear",
+//                 },
+//                 // {
+//                 //   // label: "Accounting Period",
+//                 //   path: "/dashboard/manage-accountingperiod",
+//                 //   permission: "fiscalYear",
+//                 // },
+//                 // {
+//                 //   label: "Subperiod",
+//                 //   path: "/dashboard/manage-subperiod",
+//                 //   permission: "fiscalYear",
+//                 // },
+//               ],
+//             },
+//             {
+//               label: "Accounts Receivable Controls",
+//               subItems: [
+//                 {
+//                   label: "Customers Types",
+//                   path: "/dashboard/customer/manage-customer-types",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Customers Credit Limits",
+//                   path: "/dashboard/customer/manage-customer-crLimts",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Customers Credit Ratings",
+//                   path: "/dashboard/customer/manage-customer-crRating",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Sales Territories",
+//                   path: "/dashboard/customer/manage-customer-sTerr",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Shipping Methods",
+//                   path: "/dashboard/customer/manage-customer-sMethod",
+//                   permission: "fiscalYear",
+//                 },
+//                 {
+//                   label: "Customer Terms",
+//                   path: "/dashboard/customer/manage-customer-terms",
+//                   permission: "fiscalYear",
+//                 },
+//                 // {
+//                 //   // label: "Accounting Period",
+//                 //   path: "/dashboard/manage-accountingperiod",
+//                 //   permission: "fiscalYear",
+//                 // },
+//                 // {
+//                 //   label: "Subperiod",
+//                 //   path: "/dashboard/manage-subperiod",
+//                 //   permission: "fiscalYear",
+//                 // },
+//               ],
+//             },
+//           ],
+//         },
+//       ],
+//     },
+//   ];
+
+//   const Admin = [
+//     {
+//       id: "settings",
+//       label: "Admin",
+//       icon: <Settings size={20} />,
+//       items: [
+//         {
+//           label: "Configuration",
+//           // Example of a menu with sub-items
+//           subItems: [
+//             {
+//               label: "Global Settings",
+//               path: "/dashboard/global-configuration",
+//               permission: "globalConfiguration",
+//             },
+//           ],
+//         },
+//         {
+//           label: "Orgnaization Security",
+//           // Example of a menu with sub-items
+//           subItems: [
+//             {
+//               label: "Organization",
+//               subItems: [
+//                 {
+//                   label: "Organization Security Profile",
+//                   path: "/dashboard/prof-org-sec",
+//                   permission: "globalConfiguration",
+//                 },
+//                 {
+//                   label: "Organization Security Groups",
+//                   path: "/dashboard/groups-org-sec",
+//                   permission: "globalConfiguration",
+//                 },
+//               ],
+//             },
+//           ],
+//         },
+//         {
+//           label: "Security",
+//           // Example of a menu with sub-items
+//           subItems: [
+//             {
+//               label: "System Security",
+//               subItems: [
+//                 {
+//                   label: "User Groups",
+//                   path: "/dashboard/manage-user-groups",
+//                   permission: "globalConfiguration",
+//                 },
+//                 // {
+//                 //   label: "Organization Security Groups",
+//                 //   path: "/dashboard/org-security-groups",
+//                 //   permission: "globalConfiguration",
+//                 // },
+//               ],
+//             },
+//           ],
+//         },
+//         {
+//           label: "System Administration",
+//           // Example of a menu with sub-items
+//           subItems: [
+//             {
+//               label: "System Administration Controls",
+//               subItems: [
+//                 {
+//                   label: "Set Up Company",
+//                   path: "/dashboard/company-master",
+//                   permission: "globalConfiguration",
+//                 },
+//                 // {
+//                 //   label: "Manage Organization Security Groups",
+//                 //   path: "/dashboard/org-security-groups",
+//                 //   permission: "globalConfiguration",
+//                 // },
+//               ],
+//             },
+//           ],
+//         },
+//         {
+//           label: "Burden Setup",
+//           path: "/dashboard/pool-rate-tabs",
+//           permission: "poolRateTabs",
+//         },
+//         {
+//           label: "Rights Settings",
+//           path: "/dashboard/role-rights",
+//           permission: "roleRights",
+//         },
+//       ],
+//     },
+//   ];
+
+//   const handleLinkClick = (path) => {
+//     navigate(path);
+//     setActiveModule(null); // Close flyout on click
+//   };
+
+//   return (
+//     <div className="flex fixed inset-y-0 left-0 items-center ml-1 mt-5 z-50 font-sans pointer-events-none">
+//       {/* PANEL 1: STATIC ICON RAIL */}
+//       <div
+//         onMouseEnter={() => setIsRailHovered(true)}
+//         onMouseLeave={() => setIsRailHovered(false)}
+//         className={` h-[90%] bg-white rounded-lg border border-[#17414d]/40  flex flex-col items-center py-4 space-y-4 shadow-sm pointer-events-auto transition-all ease-in-out delay-75 ${isRailHovered ? "w-40" : "w-12"}`}
+//       >
+//         {/* className={` h-[90%] bg-white rounded-lg border-t-4 border-b-4 border-[#17414d]  flex flex-col items-center py-4 space-y-4 shadow-sm pointer-events-auto transition-all ease-in-out delay-75 ${isRailHovered ? "w-38" : "w-12"}`}> */}
+
+//         {/* Top Actions */}
+//         {/* <RailIcon icon={<Home size={20} />} label="Home" onClick={() => navigate('/')} />
+//         <RailIcon icon={<Star size={20} />} label="Favorites" />
+//         <RailIcon icon={<Clock size={20} />} label="Recent" />
+        
+//         <div className="w-8 h-[1px] bg-gray-200 my-2" /> */}
+
+//         {/* Dynamic Modules */}
+//         <div className="flex flex-col h-full w-full justify-between">
+//           <div>
+//             <RailIcon
+//               icon={<HomeIcon size={20} />}
+//               isHovered={isRailHovered}
+//               // Update: Check if the current URL is exactly /dashboard
+//               active={pathname === "/dashboard"}
+//               label="Home"
+//               onClick={() => {
+//                 setActiveModule(null); // Close any open flyouts
+//                 navigate("/dashboard");
+//               }}
+//             />
+
+//             <div className="flex justify-center py-0.5">
+//               <div
+//                 className={`h-[1px] bg-gray-200 transition-all duration-300 ${
+//                   isRailHovered ? "w-full mx-2" : "w-6"
+//                 }`}
+//               />
+//             </div>
+
+//             <RailIcon
+//               icon={<Search size={20} />}
+//               label="Search"
+//               isHovered={isRailHovered}
+//               active={activeModule === "global-search"}
+//               onClick={() =>
+//                 setActiveModule(
+//                   activeModule === "global-search" ? null : "global-search",
+//                 )
+//               }
+//             />
+//             {modules.map((mod) => (
+//               <RailIcon
+//                 key={mod.id}
+//                 icon={mod.icon}
+//                 label={mod.label}
+//                 active={activeModule === mod.id}
+//                 isHovered={isRailHovered}
+//                 onClick={() =>
+//                   setActiveModule(activeModule === mod.id ? null : mod.id)
+//                 }
+//               />
+//             ))}
+//           </div>
+//           <div>
+//             {Admin.map((mod) => (
+//               <RailIcon
+//                 key={mod.id}
+//                 icon={mod.icon}
+//                 label={mod.label}
+//                 active={activeModule === mod.id}
+//                 isHovered={isRailHovered}
+//                 onClick={() =>
+//                   setActiveModule(activeModule === mod.id ? null : mod.id)
+//                 }
+//               />
+//             ))}
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* PANEL 2: THE FLYOUT (Triggered by activeModule) */}
+//       {activeModule && (
+//         <div className="flex items-center h-[80%] ml-1 pointer-events-auto">
+//           {/* Backdrop to close when clicking away */}
+//           <div
+//             className="fixed inset-0 bg-transparent z-[-1]"
+//             onClick={() => setActiveModule(null)}
+//           />
+
+//           <div className="relative w-64 bg-white shadow-2xl border border-gray-200 rounded-xl flex flex-col animate-in slide-in-from-left-2 duration-200 h-full overflow-hidden">
+//             {/* Header */}
+//             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+//               <h2 className="text-xs font-bold  tracking-wider text-gray-500">
+//                 {/* Find label from either modules or Admin array */}
+//                 {[...modules, ...Admin].find((m) => m.id === activeModule)
+//                   ?.label || "Menu"}
+//               </h2>
+//               <button
+//                 onClick={() => setActiveModule(null)}
+//                 className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+//               >
+//                 <X size={14} className="text-gray-400" />
+//               </button>
+//             </div>
+
+//             <div className="p-3 flex-1 flex flex-col min-h-0">
+//               {/* Search Bar */}
+//               {activeModule === "global-search" && (
+//                 <div className="relative mb-4">
+//                   <Search
+//                     className="absolute left-3 top-2.5 text-gray-400"
+//                     size={14}
+//                   />
+//                   <input
+//                     className="w-full bg-gray-100 border-none outline-none rounded-lg py-2 pl-9 text-xs  transition-all"
+//                     placeholder="Quick find..."
+//                     autoFocus
+//                     onChange={(e) =>
+//                       setSearchTerm(e.target.value.toLowerCase())
+//                     }
+//                   />
+//                 </div>
+//               )}
+
+//               {/* Scrollable Navigation Area */}
+//               <nav className="space-y-4 overflow-y-auto pr-1 custom-scrollbar">
+//                 {(activeModule === "global-search"
+//                   ? [...modules, ...Admin]
+//                   : [[...modules, ...Admin].find((m) => m.id === activeModule)]
+//                 )
+//                   .filter(Boolean)
+//                   .map((section) => {
+//                     const filteredItems = section.items.filter(
+//                       (item) =>
+//                         (!item.permission || canView(item.permission)) &&
+//                         !isHidden(item.permission) &&
+//                         item.label.toLowerCase().includes(searchTerm),
+//                     );
+
+//                     if (filteredItems.length === 0) return null;
+
+//                     return (
+//                       <div key={section.id} className="space-y-1">
+//                         {activeModule === "global-search" && (
+//                           <div className="px-3 py-1 text-[10px] font-semibold text-[#104e64] opacity-70 tracking-tighter">
+//                             {section.label}
+//                           </div>
+//                         )}
+
+//                         {filteredItems.map((item) => {
+//                           const hasSubItems = item.subItems?.length > 0;
+//                           const itemKey = item.path || item.label;
+//                           const isSubOpen = openSubMenus[itemKey];
+
+//                           return (
+//                             <div key={itemKey} className="flex flex-col">
+//                               {/* LEVEL 1 */}
+//                               <button
+//                                 onClick={() =>
+//                                   hasSubItems
+//                                     ? toggleSubMenu(itemKey)
+//                                     : handleLinkClick(item.path)
+//                                 }
+//                                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+//                                   pathname === item.path
+//                                     ? "bg-[#104e64] text-white shadow-md"
+//                                     : "text-gray-600 hover:bg-gray-100 hover:text-[#104e64]"
+//                                 }`}
+//                               >
+//                                 <span className="truncate">{item.label}</span>
+
+//                                 {hasSubItems && (
+//                                   <ChevronRight
+//                                     size={14}
+//                                     className={`transition-transform ${
+//                                       isSubOpen ? "rotate-90" : ""
+//                                     }`}
+//                                   />
+//                                 )}
+//                               </button>
+
+//                               {/* LEVEL 2 */}
+//                               {hasSubItems && isSubOpen && (
+//                                 <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-1">
+//                                   {item.subItems.map((sub) => {
+//                                     const hasNested = sub.subItems?.length > 0;
+//                                     const subKey = sub.path || sub.label;
+//                                     const isNestedOpen = openSubMenus[subKey];
+
+//                                     // ✅ NORMAL SUB ITEM
+//                                     if (!hasNested) {
+//                                       return (
+//                                         <button
+//                                           key={subKey}
+//                                           onClick={() =>
+//                                             handleLinkClick(sub.path)
+//                                           }
+//                                           className={`w-full text-left px-4 py-1.5 rounded-lg text-[11px] transition-all ${
+//                                             pathname === sub.path
+//                                               ? "bg-[#104e64] text-white"
+//                                               : "text-gray-500 hover:text-[#104e64] hover:bg-gray-50"
+//                                           }`}
+//                                         >
+//                                           {sub.label}
+//                                         </button>
+//                                       );
+//                                     }
+
+//                                     // ✅ LEVEL 3 DROPDOWN
+//                                     return (
+//                                       <div
+//                                         key={subKey}
+//                                         className="flex flex-col"
+//                                       >
+//                                         <button
+//                                           onClick={() => toggleSubMenu(subKey)}
+//                                           className="w-full flex items-center justify-between px-4 py-1.5 text-[11px] text-gray-500 hover:text-[#104e64] hover:bg-gray-50 rounded-lg"
+//                                         >
+//                                           <span>{sub.label}</span>
+
+//                                           <ChevronRight
+//                                             size={12}
+//                                             className={`transition-transform ${
+//                                               isNestedOpen ? "rotate-90" : ""
+//                                             }`}
+//                                           />
+//                                         </button>
+
+//                                         {isNestedOpen && (
+//                                           <div className="ml-4 mt-1 space-y-1">
+//                                             {sub.subItems.map((deep) => (
+//                                               <button
+//                                                 key={deep.path}
+//                                                 onClick={() =>
+//                                                   handleLinkClick(deep.path)
+//                                                 }
+//                                                 className={`w-full text-left px-4 py-1 rounded-md text-[10px] ${
+//                                                   pathname === deep.path
+//                                                     ? "bg-[#104e64] text-white"
+//                                                     : "text-gray-400 hover:text-[#104e64] hover:bg-gray-50"
+//                                                 }`}
+//                                               >
+//                                                 {deep.label}
+//                                               </button>
+//                                             ))}
+//                                           </div>
+//                                         )}
+//                                       </div>
+//                                     );
+//                                   })}
+//                                 </div>
+//                               )}
+//                             </div>
+//                           );
+//                         })}
+//                       </div>
+//                     );
+//                   })}
+//               </nav>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// /* Sub-component for the Rail Icons */
+// const RailIcon = ({ icon, label, onClick, active, isHovered }) => (
+//   <div className="flex flex-col mb-2 items-center w-full px-1">
+//     <button
+//       onClick={onClick}
+//       className={`w-full flex items-center cursor-pointer p-2 rounded-lg transition-all duration-300 group relative ${
+//         active ? "bg-[#104e64] text-white" : "text-black hover:bg-gray-100" // Use text-black here for the default state
+//       }`}
+//     >
+//       {/* Icon Containe: Removed background/text logic to prevent flickering */}
+//       <div className="min-w-[24px] h-4 flex items-center justify-center">
+//         {icon}
+//       </div>
+
+//       {/* Label Container */}
+//       <div
+//         className={`ml-3 transition-all duration-300 overflow-hidden whitespace-nowrap ${
+//           isHovered ? "opacity-100 w-auto" : "opacity-0 w-0 pointer-events-none"
+//         }`}
+//       >
+//         {/* Removed the background/text classes from the span */}
+//         <span className="text-xs font-medium tracking-wide">{label}</span>
+//       </div>
+//     </button>
+//   </div>
+// );
+
+// export default NavigationSidebar;
+
 // // // // // // // // // // // // import React, { useState, useEffect } from "react";
 // // // // // // // // // // // // import { Link, useLocation, useNavigate } from "react-router-dom";
 // // // // // // // // // // // // import {
@@ -12831,6 +13980,21 @@ const NavigationSidebar = ({ canView }) => {
                 // },
               ],
             },
+            {
+              label: "Taxes & Countries",
+              subItems: [
+                {
+                  label: "Countries",
+                  path: "/dashboard/manage-countries",
+                  permission: "organization",
+                },
+                {
+                  label: "Sales Taxes",
+                  path: "/dashboard/manage-sales-taxes",
+                  permission: "organization",
+                },
+              ],
+            },
 
             // {
             //   label: "Project",
@@ -12949,6 +14113,21 @@ const NavigationSidebar = ({ canView }) => {
                 {
                   label: "Construction Industry Scheme Codes",
                   path: "/dashboard/accts-payable/const-industry-sch-code",
+                  permission: "organization",
+                },
+              ],
+            },
+            {
+              label: "Vouchers",
+              subItems: [
+                {
+                  label: "Accounts Payable Vouchers",
+                  path: "/dashboard/accts-payable/accounts-payable-vouchers",
+                  permission: "organization",
+                },
+                {
+                  label: "Approve Vouchers",
+                  path: "/dashboard/accts-payable/approve-vouchers",
                   permission: "organization",
                 },
               ],
