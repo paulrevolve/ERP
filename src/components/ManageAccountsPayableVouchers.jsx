@@ -8,6 +8,7 @@ import {
 import { MainContainer, Toolbar, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
 import api from "../utils/api";
+import { backendUrl } from "./config";
 
 const PaymentVoucherIcon = () => (
   <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm -mr-2.5 flex items-center justify-center">
@@ -494,8 +495,8 @@ const childColumns = [
   }
 ];
 
-const apiBaseUrl = "http://localhost:5044/api/accounts-payable-vouchers";
-const masterDataBaseUrl = "https://finaxis-dev.onrender.com";
+const apiBaseUrl = `${backendUrl}/api/accounts-payable-vouchers`;
+const masterDataBaseUrl = backendUrl;
 const defaultCompanyId = "1";
 const defaultFiscalYear = "2027";
 const defaultPeriod = "1";
@@ -826,8 +827,18 @@ const normalizeTerms = (value) => validTerms.includes(value) ? value : defaultTe
 
 const getVoucherSaveErrorMessage = (errorData) => {
   const detail = errorData?.detail || errorData?.title || (typeof errorData === "string" ? errorData : "");
-  if (String(detail).toLowerCase().includes("terms_dc")) {
+  const detailStr = String(detail);
+  if (detailStr.toLowerCase().includes("terms_dc")) {
     return "Selected payment terms are not valid. Please choose a valid Terms value and save again.";
+  }
+  if (detailStr.includes("voucher_ln_account_project") || (detailStr.toLowerCase().includes("foreign key constraint") && detailStr.toLowerCase().includes("project"))) {
+    return "The entered Project ID is invalid. Please select a valid Project.";
+  }
+  if (detailStr.includes("voucher_ln_account_organization") || (detailStr.toLowerCase().includes("foreign key constraint") && detailStr.toLowerCase().includes("organization"))) {
+    return "The entered Organization ID is invalid. Please select a valid Organization.";
+  }
+  if (detailStr.includes("voucher_ln_account_account") || (detailStr.toLowerCase().includes("foreign key constraint") && detailStr.toLowerCase().includes("account"))) {
+    return "The entered Account ID is invalid. Please select a valid Account.";
   }
   return detail || "Unable to save voucher.";
 };
@@ -1412,16 +1423,10 @@ const ManageAccountsPayableVouchers = () => {
     fetchVendorLaborDropdowns();
   }, []);
 
-  const [records, setRecords] = useState(() => initialMockRecords.map(updateHeaderBalances));
+  const [records, setRecords] = useState([]);
 
-  const [selectedRow, setSelectedRow] = useState(() => {
-    const rec = initialMockRecords.map(updateHeaderBalances)[0];
-    return rec || null;
-  });
-  const [selectedIds, setSelectedIds] = useState(() => {
-    const rec = initialMockRecords.map(updateHeaderBalances)[0];
-    return new Set(rec ? [rec.id] : []);
-  });
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [clipboard, setClipboard] = useState([]);
 
   // Detail Table selection state
@@ -1439,17 +1444,31 @@ const ManageAccountsPayableVouchers = () => {
   const getRowKey = (row) => row ? String(row.tempId || row.id || "") : "";
   const selectedChildRow = (selectedRow?.detailLines || []).find(line => getRowKey(line) === (selectedChildRowState ? getRowKey(selectedChildRowState) : "")) || selectedChildRowState;
 
-  const selectRecord = async (record) => {
+  const mergedLines = records.filter(r => selectedIds.has(getRowKey(r))).reduce((acc, r) => {
+    const pKey = getRowKey(r);
+    const lines = (r.detailLines || []).map(line => ({
+      ...line,
+      uniqueId: `${pKey}_${line.id}`,
+      parentVoucherKey: pKey
+    }));
+    return [...acc, ...lines];
+  }, []);
+
+  const selectRecord = async (record, preserveSelectedIds = false) => {
     if (!record) {
       setSelectedRow(null);
-      setSelectedIds(new Set());
+      if (!preserveSelectedIds) {
+        setSelectedIds(new Set());
+      }
       setSelectedChildRow(null);
       setSelectedChildIds(new Set());
       return;
     }
 
     setSelectedRow(record);
-    setSelectedIds(new Set([getRowKey(record)]));
+    if (!preserveSelectedIds) {
+      setSelectedIds(new Set([getRowKey(record)]));
+    }
     const firstLine = record.detailLines?.[0] || null;
     setSelectedChildRow(firstLine);
     setSelectedChildIds(firstLine ? new Set([getRowKey(firstLine)]) : new Set());
@@ -1461,7 +1480,9 @@ const ManageAccountsPayableVouchers = () => {
       const hydrated = mapHeaderToRecord(response.data.header || {}, response.data.lines || []);
       setRecords(prev => prev.map(item => getRowKey(item) === getRowKey(record) ? hydrated : item));
       setSelectedRow(hydrated);
-      setSelectedIds(new Set([getRowKey(hydrated)]));
+      if (!preserveSelectedIds) {
+        setSelectedIds(new Set([getRowKey(hydrated)]));
+      }
       const hydratedFirstLine = hydrated.detailLines?.[0] || null;
       setSelectedChildRow(hydratedFirstLine);
       setSelectedChildIds(hydratedFirstLine ? new Set([getRowKey(hydratedFirstLine)]) : new Set());
@@ -1476,12 +1497,6 @@ const ManageAccountsPayableVouchers = () => {
       const response = await api.get(`${apiBaseUrl}?limit=100`);
       const nextRecords = (response.data || []).map(header => mapHeaderToRecord(header, []));
       setRecords(nextRecords);
-      if (nextRecords.length > 0) {
-        await selectRecord(nextRecords[0]);
-      } else {
-        setSelectedRow(null);
-        setSelectedIds(new Set());
-      }
     } catch (error) {
       toast.error(error.response?.data?.detail || "Unable to load accounts payable vouchers.");
     } finally {
@@ -1503,7 +1518,7 @@ const ManageAccountsPayableVouchers = () => {
         getJson(`${masterDataBaseUrl}/api/Account/GetAllAccounts`),
         getJson(`${masterDataBaseUrl}/Orgnization/GetAllOrgs`),
         getJson(`${masterDataBaseUrl}/Project/GetAllProjects`),
-        api.get("http://localhost:5044/api/sales-taxes")
+        api.get(`${backendUrl}/api/sales-taxes`)
       ]);
 
       if (accountsResponse.status === "fulfilled") {
@@ -2010,6 +2025,7 @@ const ManageAccountsPayableVouchers = () => {
 
         if (savedRecord.approved !== "Y") {
           sessionStorage.setItem("apVoucherPendingApproval", JSON.stringify(buildApprovalQueueVoucher(savedRecord)));
+          toast.dismiss();
           toast.success(response.data?.message || "Voucher saved for approval.");
           return;
         }
@@ -2018,15 +2034,17 @@ const ManageAccountsPayableVouchers = () => {
 
         if (selectedRow.approved !== "Y") {
           sessionStorage.setItem("apVoucherPendingApproval", JSON.stringify(buildApprovalQueueVoucher(selectedRow)));
+          toast.dismiss();
           toast.success(response.data?.message || "Voucher saved for approval.");
           return;
         }
       }
 
+      toast.dismiss();
       toast.success(response.data?.message || "Voucher saved successfully.");
     } catch (error) {
       const errorData = error.response?.data;
-      toast.error(errorData?.detail || errorData?.title || (typeof errorData === "string" ? errorData : "") || "Unable to save voucher.");
+      toast.error(getVoucherSaveErrorMessage(errorData));
     }
   };
 
@@ -2035,14 +2053,22 @@ const ManageAccountsPayableVouchers = () => {
   };
 
   // --- Child Table Operations ---
-  const handleChildFieldChange = (childId, field, value) => {
-    if (!selectedRow) return;
-    if (isApprovedLocked(selectedRow)) {
+  const handleChildFieldChange = (rawChildId, field, value) => {
+    let parentId = selectedRow ? getRowKey(selectedRow) : null;
+    let childId = rawChildId;
+
+    if (String(rawChildId).includes("_")) {
+      const parts = String(rawChildId).split("_");
+      parentId = parts[0];
+      childId = parts.slice(1).join("_");
+    }
+
+    const parentRecord = records.find(r => getRowKey(r) === parentId) || selectedRow;
+    if (!parentRecord) return;
+    if (isApprovedLocked(parentRecord)) {
       toast.warn("Approved vouchers cannot be edited.");
       return;
     }
-
-    const parentId = getRowKey(selectedRow);
 
     const resolveFieldSideEffects = (item, fld, val) => {
       let updated = { ...item, [fld]: val };
@@ -2080,17 +2106,17 @@ const ManageAccountsPayableVouchers = () => {
       let updated = resolveFieldSideEffects(item, fld, val);
       updated.isDirty = true;
 
-      const discPct = toNumber(selectedRow?.discountPercent || 0);
+      const discPct = toNumber(parentRecord?.discountPercent || 0);
 
       if (fld === "percent") {
         const pct = toNumber(val);
-        const invAmt = toNumber(selectedRow?.invoiceAmount || 0);
+        const invAmt = toNumber(parentRecord?.invoiceAmount || 0);
         const cost = (invAmt * pct) / 100;
         updated.costAmount = cost.toFixed(2);
         updated.discount = ((cost * discPct) / 100).toFixed(2);
       } else if (fld === "costAmount") {
         const cost = toNumber(val);
-        const invAmt = toNumber(selectedRow?.invoiceAmount || 0);
+        const invAmt = toNumber(parentRecord?.invoiceAmount || 0);
         updated.percent = invAmt > 0 ? ((cost / invAmt) * 100).toFixed(2) : "100.00";
         updated.discount = ((cost * discPct) / 100).toFixed(2);
       }
@@ -3066,9 +3092,14 @@ const ManageAccountsPayableVouchers = () => {
                 selectedRows={selectedIds}
                 onSelectAll={(e) => {
                   if (e.target.checked) {
-                    setSelectedIds(new Set(records.map(getRowKey)));
+                    const allKeys = records.map(getRowKey);
+                    setSelectedIds(new Set(allKeys));
+                    if (records.length > 0) {
+                      selectRecord(records[0], true);
+                    }
                   } else {
                     setSelectedIds(new Set());
+                    selectRecord(null, true);
                   }
                 }}
                 onRowSelect={(item) => {
@@ -3077,12 +3108,26 @@ const ManageAccountsPayableVouchers = () => {
                   const wasSelected = newIds.has(key);
                   if (wasSelected) {
                     newIds.delete(key);
+                    if (selectedRow && getRowKey(selectedRow) === key) {
+                      if (newIds.size > 0) {
+                        const remainingKeys = Array.from(newIds);
+                        const nextActiveKey = remainingKeys[remainingKeys.length - 1];
+                        const nextActiveRecord = records.find(r => getRowKey(r) === nextActiveKey);
+                        if (nextActiveRecord) {
+                          selectRecord(nextActiveRecord, true);
+                        } else {
+                          selectRecord(null, true);
+                        }
+                      } else {
+                        selectRecord(null, true);
+                      }
+                    }
                   } else {
                     newIds.add(key);
                   }
                   setSelectedIds(newIds);
                   if (!wasSelected) {
-                    selectRecord(item);
+                    selectRecord(item, true);
                   }
                 }}
                 onFieldChange={handleFieldChange}
@@ -3836,7 +3881,13 @@ const ManageAccountsPayableVouchers = () => {
         title="A/P Voucher Detail"
         className="mt-4 shadow-sm bg-white border border-slate-200/80 rounded-xl"
       >
-        <Toolbar
+        {!selectedRow ? (
+          <div className="text-center text-gray-400 italic text-[11px] py-8 bg-white">
+            Select a voucher to see details.
+          </div>
+        ) : (
+          <>
+            <Toolbar
           isFormView={isChildFormView}
           columns={dynamicChildColumns}
           actions={{
@@ -3847,32 +3898,30 @@ const ManageAccountsPayableVouchers = () => {
             onDelete: handleChildDelete,
             onSave: handleSave,
             onToggleView: () => {
-              const lines = selectedRow?.detailLines || [];
-              if (!isChildFormView && !selectedChildRow && lines.length > 0) {
-                setSelectedChildRow(lines[0]);
-                setSelectedChildIds(new Set([getRowKey(lines[0])]));
+              if (!isChildFormView && !selectedChildRow && mergedLines.length > 0) {
+                setSelectedChildRow(mergedLines[0]);
+                setSelectedChildIds(new Set([mergedLines[0].uniqueId]));
               }
               setIsChildFormView(!isChildFormView);
             }
           }}
           buttonsDisable={['save']}
           selectedRow={selectedChildRow}
-          isDirty={(selectedRow?.detailLines || []).some(d => d.isDirty)}
+          isDirty={mergedLines.some(d => d.isDirty)}
           clipboardCount={childClipboard.length}
           clipboard={childClipboard}
-          currentIndex={(selectedRow?.detailLines || []).findIndex(d => getRowKey(d) === getRowKey(selectedChildRow))}
-          totalRecords={(selectedRow?.detailLines || []).length}
+          currentIndex={mergedLines.findIndex(d => d.uniqueId === selectedChildRow?.uniqueId || getRowKey(d) === getRowKey(selectedChildRow))}
+          totalRecords={mergedLines.length}
           handleNavigate={(dir) => {
-            const lines = selectedRow?.detailLines || [];
-            const idx = lines.findIndex(d => getRowKey(d) === getRowKey(selectedChildRow));
+            const idx = mergedLines.findIndex(d => d.uniqueId === selectedChildRow?.uniqueId || getRowKey(d) === getRowKey(selectedChildRow));
             let targetChild = null;
-            if (dir === 'start' && lines.length > 0) targetChild = lines[0];
-            else if (dir === 'prev' && idx > 0) targetChild = lines[idx - 1];
-            else if (dir === 'next' && idx < lines.length - 1) targetChild = lines[idx + 1];
-            else if (dir === 'end' && lines.length > 0) targetChild = lines[lines.length - 1];
+            if (dir === 'start' && mergedLines.length > 0) targetChild = mergedLines[0];
+            else if (dir === 'prev' && idx > 0) targetChild = mergedLines[idx - 1];
+            else if (dir === 'next' && idx < mergedLines.length - 1) targetChild = mergedLines[idx + 1];
+            else if (dir === 'end' && mergedLines.length > 0) targetChild = mergedLines[mergedLines.length - 1];
             if (targetChild) {
               setSelectedChildRow(targetChild);
-              setSelectedChildIds(new Set([getRowKey(targetChild)]));
+              setSelectedChildIds(new Set([targetChild.uniqueId]));
             }
           }}
         />
@@ -3881,18 +3930,19 @@ const ManageAccountsPayableVouchers = () => {
           {!isChildFormView ? (
             <div className="bg-white border border-gray-200 p-2">
               <ReusableTable
-                data={selectedRow?.detailLines || []}
+                data={mergedLines}
+                rowKey="uniqueId"
                 columns={dynamicChildColumns}
                 selectedRows={selectedChildIds}
                 onSelectAll={(e) => {
                   if (e.target.checked) {
-                    setSelectedChildIds(new Set((selectedRow.detailLines || []).map(getRowKey)));
+                    setSelectedChildIds(new Set(mergedLines.map(l => l.uniqueId)));
                   } else {
                     setSelectedChildIds(new Set());
                   }
                 }}
                 onRowSelect={(item) => {
-                  const key = getRowKey(item);
+                  const key = item.uniqueId;
                   const newIds = new Set(selectedChildIds);
                   if (newIds.has(key)) {
                     newIds.delete(key);
@@ -4363,6 +4413,8 @@ const ManageAccountsPayableVouchers = () => {
             );
           })}
         </div>
+          </>
+        )}
       </SecondaryContainer>
 
       <div className="mt-4 flex flex-col gap-4">

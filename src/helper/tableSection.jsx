@@ -767,9 +767,9 @@ const renderInput = (col, item, id, isNew, onFieldChange) => {
           <input
             type="checkbox"
             className="accent-[#17414d] h-3 w-3 cursor-pointer"
-            checked={!!value}
+            checked={value === "Y" || value === true || value === 1 || value === "1"}
             disabled={!isEditable}
-            onChange={(e) => onFieldChange(id, col.key, e.target.checked)}
+            onChange={(e) => onFieldChange(id, col.key, e.target.checked ? "Y" : "N")}
           />
         </div>
       );

@@ -1,21 +1,123 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { MainContainer, Toolbar, SecondaryContainer } from "../helper/container";
-import { FormSection, FormInput as HelperFormInput } from "../helper/formSection";
 import { ReusableTable } from "../helper/tableSection";
 import api from "../utils/api";
+import { backendUrl } from "./config";
 
 let isCurrentVoucherApprovedLocked = false;
-const FormInput = (props) => {
-  const isApproveCheckbox = props.label === "Approved" || props.label === "Approve" || props.label === "appr";
-  const readOnly = props.readOnly || (isCurrentVoucherApprovedLocked && !isApproveCheckbox);
-  const disabled = props.disabled || (isCurrentVoucherApprovedLocked && !isApproveCheckbox && props.type === "checkbox");
-  return <HelperFormInput {...props} readOnly={readOnly} disabled={disabled} />;
+
+const FormSection = ({ title, children, className = "" }) => {
+  return (
+    <div className={`relative rounded border border-slate-200 bg-white py-3 px-3 shadow-none ${className}`}>
+      {title && (
+        <div className="flex items-center gap-2 pb-1.5 mb-2.5 border-b border-slate-200 select-none">
+          <span className="text-xs font-bold text-gray-700">
+            {title}
+          </span>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const FormInput = ({
+  label,
+  required,
+  type = "text",
+  value,
+  checked,
+  onChange,
+  onBlur,
+  readOnly,
+  disabled,
+  className = "",
+  placeholder,
+  horizontal,
+  inputClassName = "",
+}) => {
+  const isApproveCheckbox = label === "Approved" || label === "Approve" || label === "appr";
+  const actualReadOnly = readOnly || (isCurrentVoucherApprovedLocked && !isApproveCheckbox);
+  const actualDisabled = disabled || (isCurrentVoucherApprovedLocked && !isApproveCheckbox && type === "checkbox");
+
+  const isClickable = type === "checkbox" || type === "radio";
+
+  if (isClickable) {
+    return (
+      <div className="w-full flex items-center pt-0.5 pb-0.5">
+        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
+          <input
+            type={type}
+            checked={checked}
+            onChange={onChange}
+            disabled={actualDisabled}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
+          />
+          <span className="text-[11px] font-semibold text-slate-700">{label}</span>
+        </label>
+      </div>
+    );
+  }
+
+  if (horizontal) {
+    return (
+      <div className={`flex items-center justify-between gap-4 w-full ${className}`}>
+        {label && (
+          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
+            {label} {required && <span className="text-red-500">*</span>}
+          </span>
+        )}
+        <div className="w-3/5">
+          <input
+            type={type}
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur}
+            readOnly={actualReadOnly}
+            disabled={actualDisabled}
+            placeholder={placeholder}
+            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+              ${actualReadOnly || actualDisabled 
+                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
+                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+              }`}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex flex-col gap-1 w-full ${className}`}>
+      {label && (
+        <span className="text-xs font-semibold text-slate-700 select-none">
+          {label} {required && <span className="text-red-500">*</span>}
+        </span>
+      )}
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={onChange}
+        onBlur={onBlur}
+        readOnly={actualReadOnly}
+        disabled={actualDisabled}
+        placeholder={placeholder}
+        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+          ${actualReadOnly || actualDisabled 
+            ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
+            : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+          }`}
+      />
+    </div>
+  );
 };
 
 const getRowKey = (row) => row.id || row.voucher || "";
 
-const apiBaseUrl = "http://localhost:5044/api/accounts-payable-vouchers";
+const apiBaseUrl = `${backendUrl}/api/accounts-payable-vouchers`;
 const defaultCompanyId = "1";
 const defaultFiscalYear = "2027";
 const defaultPeriod = "1";

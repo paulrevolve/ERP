@@ -649,8 +649,8 @@ export const ManageSalesTaxes = () => {
     setLoading(true);
     try {
       const [taxRes, acctRes] = await Promise.all([
-        api.get("http://localhost:5044/api/sales-taxes"),
-        api.get("http://localhost:5044/api/sales-tax-accounts")
+        api.get(`${backendUrl}/api/sales-taxes`),
+        api.get(`${backendUrl}/api/sales-tax-accounts`)
       ]);
       const taxes = (taxRes.data || []).map((tax) => ({
         ...tax,
@@ -740,14 +740,14 @@ export const ManageSalesTaxes = () => {
     }
 
     try {
-      const res = await api.get("http://localhost:5044/api/states");
+      const res = await api.get(`${backendUrl}/api/states`);
       setStatesMaster(res.data || []);
     } catch (error) {
       console.error("Error fetching states master:", error);
     }
 
     try {
-      const res = await api.get("http://localhost:5044/api/countries");
+      const res = await api.get(`${backendUrl}/api/countries`);
       setCountriesMaster(res.data || []);
     } catch (error) {
       console.error("Error fetching countries master:", error);
@@ -880,9 +880,9 @@ export const ManageSalesTaxes = () => {
           requiresVatInfo: !!tax.requiresVatInfo
         };
         if (tax.isNew) {
-          await api.post("http://localhost:5044/api/sales-taxes", payload);
+          await api.post(`${backendUrl}/api/sales-taxes`, payload);
         } else {
-          await api.put(`http://localhost:5044/api/sales-taxes/${tax.companyId || companyId}/${tax.taxCode}`, payload);
+          await api.put(`${backendUrl}/api/sales-taxes/${tax.companyId || companyId}/${tax.taxCode}`, payload);
         }
       }
 
@@ -911,9 +911,9 @@ export const ManageSalesTaxes = () => {
             suspenseOrg: account.suspenseOrg || ""
           };
           if (account.isNew) {
-            await api.post("http://localhost:5044/api/sales-tax-accounts", payloadAcc);
+            await api.post(`${backendUrl}/api/sales-tax-accounts`, payloadAcc);
           } else {
-            await api.put(`http://localhost:5044/api/sales-tax-accounts/${tax.companyId || companyId}/${tax.taxCode}/${account.accountKey}`, payloadAcc);
+            await api.put(`${backendUrl}/api/sales-tax-accounts/${tax.companyId || companyId}/${tax.taxCode}/${account.accountKey}`, payloadAcc);
           }
         }
       }
@@ -952,7 +952,7 @@ export const ManageSalesTaxes = () => {
           const tax = salesTaxes.find(c => getTaxKey(c) === id);
           if (tax && tax.taxCode && !tax.isNew) {
             try {
-              await api.delete(`http://localhost:5044/api/sales-taxes/${tax.companyId || companyId}/${tax.taxCode}`);
+              await api.delete(`${backendUrl}/api/sales-taxes/${tax.companyId || companyId}/${tax.taxCode}`);
             } catch (err) {
               if (err.response?.status !== 404) throw err;
             }
@@ -1167,7 +1167,7 @@ export const ManageSalesTaxes = () => {
           const account = (selectedTax.accounts || []).find(a => getAccountKey(a) === id);
           if (account && account.accountKey && account.accountKey !== "undefined") {
             try {
-              await api.delete(`http://localhost:5044/api/sales-tax-accounts/${selectedTax.companyId || companyId}/${selectedTax.taxCode}/${account.accountKey}`);
+              await api.delete(`${backendUrl}/api/sales-tax-accounts/${selectedTax.companyId || companyId}/${selectedTax.taxCode}/${account.accountKey}`);
             } catch (err) {
               if (err.response?.status !== 404) throw err;
             }
