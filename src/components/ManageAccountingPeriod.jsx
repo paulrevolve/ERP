@@ -2,21 +2,239 @@ import React, { useEffect, useState, useRef } from "react";
 import { backendUrl } from "./config";
 import { toast } from "react-toastify";
 import api from "../utils/api";
-import { CalendarDays, Calendar } from "lucide-react";
+import { CalendarDays, Calendar, Search } from "lucide-react";
 import {
   MainContainer,
   SecondaryContainer,
   Toolbar,
 } from "../helper/container";
 import {
-  FormSearchSelect,
-  FormInput,
-  FormSection,
   ActionDetailButton,
 } from "../helper/formSection";
 import ReusableTable from "../helper/tableSection";
 import CustomDatePicker from "./CustomeDatePicker";
 // import CustomDatePicker from "./CustomeDatePicker";
+
+const FormSection = ({ title, children, className = "" }) => {
+  return (
+    <div className={`relative rounded border border-slate-200 bg-white py-3 px-3 shadow-none ${className}`}>
+      {title && (
+        <div className="flex items-center gap-2 pb-1.5 mb-2.5 border-b border-slate-200 select-none">
+          <span className="text-xs font-bold text-gray-700">
+            {title}
+          </span>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const FormInput = ({
+  label,
+  required,
+  type = "text",
+  value,
+  checked,
+  onChange,
+  onBlur,
+  readOnly,
+  disabled,
+  className = "",
+  placeholder,
+  horizontal,
+  inputClassName = "",
+}) => {
+  const isApproveCheckbox = label === "Approved" || label === "Approve" || label === "appr";
+  const isCurrentRecordApprovedLocked = false;
+  const actualReadOnly = readOnly || (isCurrentRecordApprovedLocked && !isApproveCheckbox);
+  const actualDisabled = disabled || (isCurrentRecordApprovedLocked && !isApproveCheckbox && type === "checkbox");
+
+  const isClickable = type === "checkbox" || type === "radio";
+
+  if (isClickable) {
+    return (
+      <div className="w-full flex items-center pt-0.5 pb-0.5">
+        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
+          <input
+            type={type}
+            checked={checked}
+            onChange={onChange}
+            disabled={actualDisabled}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
+          />
+          <span className="text-[11px] font-semibold text-slate-700">{label}</span>
+        </label>
+      </div>
+    );
+  }
+
+  if (horizontal) {
+    return (
+      <div className={`flex items-center justify-between gap-4 w-full ${className}`}>
+        {label && (
+          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
+            {label} {required && <span className="text-red-500">*</span>}
+          </span>
+        )}
+        <div className="w-3/5">
+          <input
+            type={type}
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur}
+            readOnly={actualReadOnly}
+            disabled={actualDisabled}
+            placeholder={placeholder}
+            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+              ${actualReadOnly || actualDisabled 
+                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
+                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+              }`}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex flex-col gap-1 w-full ${className}`}>
+      {label && (
+        <span className="text-xs font-semibold text-slate-700 select-none">
+          {label} {required && <span className="text-red-500">*</span>}
+        </span>
+      )}
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={onChange}
+        onBlur={onBlur}
+        readOnly={actualReadOnly}
+        disabled={actualDisabled}
+        placeholder={placeholder}
+        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+          ${actualReadOnly || actualDisabled 
+            ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
+            : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+          }`}
+      />
+    </div>
+  );
+};
+
+const FormSearchSelect = ({
+  label,
+  value,
+  searchTerm = "",
+  setSearchTerm,
+  options,
+  onSelect,
+  displayKey,
+  secondaryKey,
+  disabled,
+  placeholder = "",
+}) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [localSearch, setLocalSearch] = useState("");
+
+  const searchVal = setSearchTerm ? searchTerm : localSearch;
+  const setSearchVal = setSearchTerm ? setSearchTerm : setLocalSearch;
+
+  const selectedOption = options?.find((opt) => {
+    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey]];
+    return candidateKeys.some((key) => String(key) === String(value));
+  });
+
+  const filteredOptions = (options || []).filter((opt) => {
+    const search = searchVal.toLowerCase().trim();
+    if (!search) return true;
+    const mainValue = String(opt[displayKey] || "").toLowerCase();
+    const subValue = secondaryKey ? String(opt[secondaryKey] || "").toLowerCase() : "";
+    return mainValue.includes(search) || subValue.includes(search);
+  });
+
+  const inputValue = isTyping
+    ? searchVal
+    : selectedOption
+    ? selectedOption[displayKey]
+    : searchVal || value || "";
+
+  return (
+    <div className="flex flex-col gap-1 w-full relative">
+      {label && (
+        <span className="text-xs font-semibold text-slate-700 select-none">
+          {label}
+        </span>
+      )}
+      <div className="relative">
+        <input
+          type="text"
+          disabled={disabled}
+          value={inputValue}
+          placeholder={placeholder}
+          onChange={(e) => {
+            setIsTyping(true);
+            setSearchVal(e.target.value);
+            setShowDropdown(true);
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setIsTyping(false);
+            }, 200);
+          }}
+          onFocus={() => !disabled && setShowDropdown(true)}
+          className={`w-full pl-2 pr-8 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none
+            ${disabled
+              ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+              : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+            }`}
+        />
+        <div
+          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400"
+          onClick={() => !disabled && setShowDropdown(!showDropdown)}
+        >
+          <Search size={12} />
+        </div>
+
+        {showDropdown && !disabled && (
+          <>
+            <div className="absolute left-0 top-full z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((opt, idx) => (
+                  <div
+                    key={idx}
+                    className="px-3 py-2 text-[11px] hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none font-medium text-slate-700"
+                    onClick={() => {
+                      onSelect(opt);
+                      setSearchVal("");
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <span>{opt[displayKey]}</span>
+                    {secondaryKey && opt[secondaryKey] && (
+                      <span className="text-slate-400 ml-2">({opt[secondaryKey]})</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="px-3 py-4 text-[11px] text-slate-400 italic text-center">
+                  No matches
+                </div>
+              )}
+            </div>
+            <div
+              className="fixed inset-0 z-[90]"
+              onClick={() => setShowDropdown(false)}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const ManageAccountingPeriod = ({ canEdit }) => {
   // --- Data States ---
@@ -1237,15 +1455,15 @@ const ManageAccountingPeriod = ({ canEdit }) => {
 
                   <div className="space-y-4 ">
                     <div className="grid grid-cols-3">
-                      <div className=" flex items-center gap-3 relative group">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <div className="flex flex-col gap-1 w-full relative">
+                        <span className="text-xs font-semibold text-slate-700 select-none">
                           Period End Date
-                        </label>
+                        </span>
 
-                        <div className="relative flex items-center">
+                        <div className="relative">
                           <input
                             type="text"
-                            className="w-full p-1 text-[10px] border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                            className="w-full pl-2 pr-8 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
                             placeholder="MM-DD-YYYY"
                             value={(() => {
                               const val = selectedFycdRow?.periodEndDate;
@@ -1256,7 +1474,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                               const parts = datePart.split("-");
                               // Format YYYY-MM-DD to MM-DD-YYYY for display
                               if (parts.length === 3 && parts[0].length === 4) {
-                                return `${parts[1]}-${parts[2]}-${parts[0]}`;
+                                  return `${parts[1]}-${parts[2]}-${parts[0]}`;
                               }
                               return datePart;
                             })()}
@@ -1323,7 +1541,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                           />
 
                           <div
-                            className="absolute right-3 cursor-pointer text-gray-400 hover:text-blue-600 transition-colors"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"
                             onClick={() => {
                               setDatePickerRowId(
                                 getRowKey(selectedFycdRow || {}),
@@ -1338,7 +1556,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                         {showDatePicker &&
                           datePickerRowId ===
                             getRowKey(selectedFycdRow || {}) && (
-                            <div className="absolute z-50 mt-1 right-0 shadow-xl border rounded-lg bg-white">
+                            <div className="absolute left-0 top-full z-[100] mt-1 shadow-xl border rounded-lg bg-white">
                               <CustomDatePicker
                                 selectedDate={
                                   selectedFycdRow?.periodEndDate?.length ===
@@ -1368,16 +1586,16 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                       {/* Left Section: Status */}
                       <div className="flex-1">
                         <FormSection title="Status">
-                          <div className="flex gap-6">
+                          <div className="flex gap-4">
                             {statusOpt.map((opt) => (
                               <label
                                 key={opt.statusCd}
-                                className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 "
+                                className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full"
                               >
                                 <input
                                   type="radio"
                                   name="status"
-                                  className="w-3 h-3 text-blue-600 focus:ring-blue-500"
+                                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
                                   checked={
                                     selectedFycdRow?.statusCd === opt.statusCd
                                   }
@@ -1389,19 +1607,18 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                                     )
                                   }
                                 />
-                                {opt.name}
+                                <span className="text-[11px] font-semibold text-slate-700">{opt.name}</span>
                               </label>
                             ))}
                           </div>
                         </FormSection>
                       </div>
 
-                      {/* Middle Section: Adjustment Checkbox (Lowered to align with row) */}
-                      <div className="flex items-center gap-2 pb-3 min-w-fit">
-                        <input
+                      {/* Middle Section: Adjustment Checkbox */}
+                      <div className="flex items-center min-w-fit">
+                        <FormInput
+                          label="Adjustment Period"
                           type="checkbox"
-                          id="isAdj"
-                          className="w-3 h-3 rounded text-blue-600 cursor-pointer"
                           checked={selectedFycdRow?.isAdjustment === "Y"}
                           onChange={(e) =>
                             handleFieldChange(
@@ -1411,12 +1628,6 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                             )
                           }
                         />
-                        <label
-                          htmlFor="isAdj"
-                          className="text-xs font-semibold text-gray-700 cursor-pointer whitespace-nowrap"
-                        >
-                          Adjustment Period
-                        </label>
                       </div>
 
                       {/* Right Section: Adjustment Rate Type */}
@@ -1429,16 +1640,16 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                                 : "opacity-100"
                             }`}
                           >
-                            <div className="flex gap-6">
+                            <div className="flex gap-4">
                               {adjRateOpt.map((opt) => (
                                 <label
                                   key={opt.adjustmentCode}
-                                  className="flex items-center gap-2 text-xs font-medium cursor-pointer text-gray-700"
+                                  className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full"
                                 >
                                   <input
                                     type="radio"
                                     name="adjRate"
-                                    className="w-3 h-3 text-blue-600"
+                                    className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
                                     checked={
                                       selectedFycdRow?.adjustmentCode ===
                                       opt.adjustmentCode
@@ -1451,7 +1662,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                                       )
                                     }
                                   />
-                                  {opt.name}
+                                  <span className="text-[11px] font-semibold text-slate-700">{opt.name}</span>
                                 </label>
                               ))}
                             </div>
