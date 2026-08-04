@@ -10,6 +10,11 @@
     sans-serif;
 }
 
+:root {
+  /* Reducing the base font size slightly (standard is usually 16px) */
+  font-size: 14px;
+}
+
 @layer components {
   .bg-gradient {
     @apply bg-gradient-to-b from-gray-900 to-blue-900;
