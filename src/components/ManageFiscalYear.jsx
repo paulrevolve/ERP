@@ -1579,7 +1579,7 @@
 //         {isFormView ? (
 //           <div className="space-y-1 p-1 py-2">
 //             {/* {selectedRows.length > 0 && (
-            
+
 //               <div className="mb-2 text-sm text-gray-600">
 //                 {selectedRows.length} row(s) selected
 //               </div>
@@ -2501,10 +2501,32 @@ const ManageFiscalYear = ({ canEdit }) => {
   const [filteredGroups, setFilteredGroups] = useState([]);
   const [isFormView, setIsFormView] = useState(true);
   const [loading, setLoading] = useState(false);
+  const loadingTimeoutRef = useRef(null);
+
+  const startLoading = () => {
+    setLoading(true);
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = setTimeout(() => {
+      setLoading(false);
+    }, 10000); // 10s safety timeout to prevent stuck disabled buttons
+  };
+
+  const stopLoading = () => {
+    setLoading(false);
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+  };
+
   const [selectedRows, setSelectedRows] = useState([]);
   // --- UI & Find/Replace States ---
   const [searchTermProfiles, setSearchTermProfiles] = useState("");
   const [clipboard, setClipboard] = useState([]);
+  const [hasCopied, setHasCopied] = useState(false);
+  const [focusedCell, setFocusedCell] = useState(null);
+  const focusedCellRef = useRef(null);
+  focusedCellRef.current = focusedCell;
   const [searchColumn, setSearchColumn] = useState("fyCd");
   const [searchValue, setSearchValue] = useState("");
   const [replaceValue, setReplaceValue] = useState("");
@@ -2704,7 +2726,7 @@ const ManageFiscalYear = ({ canEdit }) => {
   ];
 
   const fetchData = async (isReset = false) => {
-    setLoading(true);
+    startLoading();
     try {
       const res = await api.get(`${backendUrl}/api/FiscalYear`);
       const rawData = res.data || [];
@@ -2712,6 +2734,7 @@ const ManageFiscalYear = ({ canEdit }) => {
       // 1. Map codes to names immediately so the Table and Form can render them
       const enrichedData = rawData.map((item) => ({
         ...item,
+        tableRowKey: item.fyCd,
         statusName:
           statusOpt.find((o) => o.statusCd === item.statusCd)?.name || "",
         rateName:
@@ -2747,7 +2770,7 @@ const ManageFiscalYear = ({ canEdit }) => {
     } catch (e) {
       console.error("Fetch error", e);
     } finally {
-      setLoading(false);
+      stopLoading();
     }
   };
 
@@ -2777,7 +2800,7 @@ const ManageFiscalYear = ({ canEdit }) => {
   //   };
 
   // Helper function for stable row key (MUST be before useEffect that uses it)
-  const getRowKey = (row) => row?.tempId || row?.fyCd || "";
+  const getRowKey = (row) => row?.tableRowKey || row?.tempId || row?.fyCd || "";
 
   useEffect(() => {
     const initialize = async () => {
@@ -2808,7 +2831,6 @@ const ManageFiscalYear = ({ canEdit }) => {
 
     // Validation for Fiscal Year Code
     if (field === "fyCd" && /\s/.test(value)) {
-      toast.warn("No spacing allowed in Fiscal Year Code");
       finalValue = value.replace(/\s+/g, "");
     }
 
@@ -2816,6 +2838,7 @@ const ManageFiscalYear = ({ canEdit }) => {
       prev.map((row) => {
         if (getRowKey(row) === id) {
           const updatedRow = { ...row, [field]: finalValue, isDirty: true };
+          updatedRow.tableRowKey = updatedRow.tempId || updatedRow.fyCd;
 
           if (field === "fyCd") {
             // Check if value is a valid 4-digit year (e.g., 2026)
@@ -2841,6 +2864,55 @@ const ManageFiscalYear = ({ canEdit }) => {
         return row;
       }),
     );
+  };
+
+  const handleBatchRowsUpdate = (updatesMap) => {
+    setFycd((prev) => {
+      const updatedList = prev.map((row) => {
+        const rowId = getRowKey(row);
+        if (rowId in updatesMap) {
+          let finalChanges = { ...updatesMap[rowId] };
+
+          if ("fyCd" in finalChanges) {
+            let finalValue = finalChanges.fyCd;
+            if (/\s/.test(finalValue)) {
+              finalValue = finalValue.replace(/\s+/g, "");
+            }
+            finalChanges.fyCd = finalValue;
+          }
+
+          const updatedRow = { ...row, ...finalChanges, isDirty: true };
+          updatedRow.tableRowKey = updatedRow.tempId || updatedRow.fyCd;
+
+          if ("fyCd" in finalChanges) {
+            const finalValue = finalChanges.fyCd;
+            if (/^\d{4}$/.test(finalValue)) {
+              updatedRow.startDate = `${finalValue}-01-01`;
+            }
+          }
+          return updatedRow;
+        }
+        return row;
+      });
+
+      if (selectedFycdRow) {
+        const activeId = getRowKey(selectedFycdRow);
+        const updatedActiveRow = updatedList.find((r) => getRowKey(r) === activeId);
+        if (updatedActiveRow) {
+          setSelectedFycdRow(updatedActiveRow);
+        }
+      }
+
+      setSelectedRows((prevSelected) =>
+        prevSelected.map((sRow) => {
+          const sId = getRowKey(sRow);
+          const updatedSRow = updatedList.find((r) => getRowKey(r) === sId);
+          return updatedSRow || sRow;
+        }),
+      );
+
+      return updatedList;
+    });
   };
 
   // --- Find & Replace Logic ---
@@ -2936,6 +3008,7 @@ const ManageFiscalYear = ({ canEdit }) => {
     const tempId = `TEMP_${Date.now()}`;
     const newRow = {
       tempId: tempId,
+      tableRowKey: tempId,
       fyCd: "",
       fyDesc: "",
       statusCd: "O", // Default to Open
@@ -2964,7 +3037,7 @@ const ManageFiscalYear = ({ canEdit }) => {
 
     if (!window.confirm(confirmMessage)) return;
 
-    setLoading(true);
+    startLoading();
     try {
       await Promise.all(
         selectedRows.map((row) => {
@@ -3001,47 +3074,591 @@ const ManageFiscalYear = ({ canEdit }) => {
       console.error("Delete Error:", e);
       toast.error(e.response?.data?.message || "Delete failed");
     } finally {
-      setLoading(false);
+      stopLoading();
     }
+  };
+
+  const resolveStatus = (val) => {
+    const trimmed = String(val || "").trim().toLowerCase();
+    if (!trimmed || trimmed === "select") {
+      return { statusCd: " ", statusName: "Select" };
+    }
+    if (trimmed.startsWith("o") || trimmed.includes("open") || trimmed.includes("act")) {
+      return { statusCd: "O", statusName: "Open" };
+    }
+    if (trimmed.startsWith("c") || trimmed.includes("clos") || trimmed.includes("inact")) {
+      return { statusCd: "C", statusName: "Closed" };
+    }
+    return { statusCd: " ", statusName: "Select" };
+  };
+
+  const resolveRateType = (val) => {
+    const trimmed = String(val || "").trim().toLowerCase();
+    if (!trimmed || trimmed === "none") {
+      return { closeActTgtCd: "", rateName: "None" };
+    }
+    if (trimmed.startsWith("a") || trimmed.includes("act")) {
+      return { closeActTgtCd: "A", rateName: "Actual Rates" };
+    }
+    if (trimmed.startsWith("t") || trimmed.includes("targ")) {
+      return { closeActTgtCd: "T", rateName: "Target Rates" };
+    }
+    return { closeActTgtCd: "", rateName: "None" };
+  };
+
+  const processPastedText = (text) => {
+    console.log("[ERP PASTE] processPastedText START. Raw text:", JSON.stringify(text));
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
+    }
+
+    const FORM_FIELDS_ORDER = ["fyCd", "fyDesc", "status", "rateType"];
+    const activeFocusedCell = focusedCellRef.current;
+    console.log("[ERP PASTE] activeFocusedCell detected:", JSON.stringify(activeFocusedCell));
+
+    const headerKeys = [
+      "fiscal year",
+      "fycd",
+      "description",
+      "fydesc",
+      "status",
+      "statuscd",
+      "statusname",
+      "rate type",
+      "ratetype",
+      "closeacttgtcd",
+      "ratename",
+    ];
+
+    const isValidStatusValue = (val) => {
+      const trimmed = String(val || "").trim().toLowerCase();
+      if (trimmed === "" || trimmed === "select") return true;
+      return (
+        trimmed.startsWith("o") ||
+        trimmed.includes("open") ||
+        trimmed.includes("act") ||
+        trimmed.startsWith("c") ||
+        trimmed.includes("clos") ||
+        trimmed.includes("inact")
+      );
+    };
+
+    const isValidRateTypeValue = (val) => {
+      const trimmed = String(val || "").trim().toLowerCase();
+      if (trimmed === "" || trimmed === "none") return true;
+      return (
+        trimmed.startsWith("a") ||
+        trimmed.includes("act") ||
+        trimmed.startsWith("t") ||
+        trimmed.includes("targ")
+      );
+    };
+
+    if (activeFocusedCell) {
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== "");
+
+      if (lines.length > 0) {
+        const firstLineCells = lines[0]
+          .split("\t")
+          .map((cell) => cell.trim().toLowerCase());
+        const isHeaderRow = firstLineCells.some((cell) => headerKeys.includes(cell));
+
+        const dataLines = isHeaderRow ? lines.slice(1) : lines;
+
+        if (dataLines.length > 0) {
+          const tableData = filteredGroups.length > 0 ? filteredGroups : fycd;
+          const updatesMap = {};
+          const startFieldIdx = FORM_FIELDS_ORDER.indexOf(activeFocusedCell.fieldName);
+
+          if (startFieldIdx !== -1) {
+            let headerMapping = null;
+            if (isHeaderRow) {
+              headerMapping = [];
+              firstLineCells.forEach((headerVal) => {
+                let fieldName = null;
+                if (["fiscal year", "fycd", "year"].includes(headerVal)) {
+                  fieldName = "fyCd";
+                } else if (["description", "fydesc", "desc"].includes(headerVal)) {
+                  fieldName = "fyDesc";
+                } else if (["status", "statuscd", "statusname"].includes(headerVal)) {
+                  fieldName = "status";
+                } else if (["rate type", "ratetype", "closeacttgtcd", "ratename"].includes(headerVal)) {
+                  fieldName = "rateType";
+                }
+                headerMapping.push(fieldName);
+              });
+            }
+
+            if (activeFocusedCell.view === "form" && selectedFycdRow) {
+              const cells = dataLines[0].split("\t").map((cell) => cell.trim());
+              console.log("[ERP PASTE] Form View cells parsed:", JSON.stringify(cells));
+              let hasValue = false;
+              let targetVal = "";
+              if (isHeaderRow && headerMapping) {
+                const clipboardColIdx = headerMapping.indexOf(activeFocusedCell.fieldName);
+                if (clipboardColIdx !== -1 && clipboardColIdx < cells.length) {
+                  targetVal = cells[clipboardColIdx];
+                  hasValue = targetVal !== "";
+                }
+              } else {
+                if (cells.length > 0) {
+                  targetVal = cells[0];
+                  hasValue = targetVal !== "";
+                }
+              }
+
+              console.log("[ERP PASTE] Form View hasValue (before year check):", hasValue, "targetVal:", targetVal);
+
+              if (activeFocusedCell.fieldName === "fyCd" && hasValue) {
+                const isYear = /^\d{4}$/.test(targetVal);
+                console.log("[ERP PASTE] Form View fiscal year validation check result:", isYear);
+                if (!isYear) {
+                  hasValue = false;
+                }
+              }
+
+              // Alignment Validation: ensure columns match types when not using header rows
+              if (hasValue && !isHeaderRow) {
+                cells.forEach((cellVal, cOffset) => {
+                  const targetColIdx = startFieldIdx + cOffset;
+                  if (targetColIdx < FORM_FIELDS_ORDER.length) {
+                    const fieldName = FORM_FIELDS_ORDER[targetColIdx];
+                    if (fieldName === "status" && cellVal !== "") {
+                      if (!isValidStatusValue(cellVal)) {
+                        console.log("[ERP PASTE] Form View status alignment invalid:", cellVal);
+                        hasValue = false;
+                      }
+                    } else if (fieldName === "rateType" && cellVal !== "") {
+                      if (!isValidRateTypeValue(cellVal)) {
+                        console.log("[ERP PASTE] Form View rateType alignment invalid:", cellVal);
+                        hasValue = false;
+                      }
+                    }
+                  }
+                });
+              }
+
+              console.log("[ERP PASTE] Form View final hasValue:", hasValue);
+
+              if (!hasValue) {
+                return toast.warn("No value found in clipboard for the focused field.");
+              }
+
+              const activeId = getRowKey(selectedFycdRow);
+              const changes = {};
+
+              cells.forEach((cellVal, cOffset) => {
+                let fieldName = null;
+                if (isHeaderRow && headerMapping) {
+                  fieldName = headerMapping[cOffset];
+                } else {
+                  const targetColIdx = startFieldIdx + cOffset;
+                  if (targetColIdx < FORM_FIELDS_ORDER.length) {
+                    fieldName = FORM_FIELDS_ORDER[targetColIdx];
+                  }
+                }
+
+                if (fieldName && cellVal !== "") {
+                  if (fieldName === "fyCd") {
+                    changes.fyCd = cellVal;
+                  } else if (fieldName === "fyDesc") {
+                    changes.fyDesc = cellVal;
+                  } else if (fieldName === "status") {
+                    const { statusCd, statusName } = resolveStatus(cellVal);
+                    changes.statusCd = statusCd;
+                    changes.statusName = statusName;
+                  } else if (fieldName === "rateType") {
+                    const { closeActTgtCd, rateName } = resolveRateType(cellVal);
+                    changes.closeActTgtCd = closeActTgtCd;
+                    changes.rateName = rateName;
+                  }
+                }
+              });
+
+              updatesMap[activeId] = changes;
+              handleBatchRowsUpdate(updatesMap);
+              toast.success("Fields pasted successfully.");
+              return;
+
+            } else if (activeFocusedCell.view === "table") {
+              const newPastedRows = [];
+              const firstRowCells = dataLines[0].split("\t").map((cell) => cell.trim());
+              console.log("[ERP PASTE] Table View firstRowCells parsed:", JSON.stringify(firstRowCells));
+              let hasValue = false;
+              let targetVal = "";
+              if (isHeaderRow && headerMapping) {
+                const clipboardColIdx = headerMapping.indexOf(activeFocusedCell.fieldName);
+                if (clipboardColIdx !== -1 && clipboardColIdx < firstRowCells.length) {
+                  targetVal = firstRowCells[clipboardColIdx];
+                  hasValue = targetVal !== "";
+                }
+              } else {
+                if (firstRowCells.length > 0) {
+                  targetVal = firstRowCells[0];
+                  hasValue = targetVal !== "";
+                }
+              }
+
+              console.log("[ERP PASTE] Table View hasValue (before year check):", hasValue, "targetVal:", targetVal);
+
+              if (activeFocusedCell.fieldName === "fyCd" && hasValue) {
+                const isYear = /^\d{4}$/.test(targetVal);
+                console.log("[ERP PASTE] Table View fiscal year validation check result:", isYear);
+                if (!isYear) {
+                  hasValue = false;
+                }
+              }
+
+              // Alignment Validation: ensure columns match types when not using header rows
+              if (hasValue && !isHeaderRow) {
+                firstRowCells.forEach((cellVal, cOffset) => {
+                  const targetColIdx = startFieldIdx + cOffset;
+                  if (targetColIdx < FORM_FIELDS_ORDER.length) {
+                    const fieldName = FORM_FIELDS_ORDER[targetColIdx];
+                    if (fieldName === "status" && cellVal !== "") {
+                      if (!isValidStatusValue(cellVal)) {
+                        console.log("[ERP PASTE] Table View status alignment invalid:", cellVal);
+                        hasValue = false;
+                      }
+                    } else if (fieldName === "rateType" && cellVal !== "") {
+                      if (!isValidRateTypeValue(cellVal)) {
+                        console.log("[ERP PASTE] Table View rateType alignment invalid:", cellVal);
+                        hasValue = false;
+                      }
+                    }
+                  }
+                });
+              }
+
+              console.log("[ERP PASTE] Table View final hasValue:", hasValue);
+
+              if (!hasValue) {
+                return toast.warn("No value found in clipboard for the focused field.");
+              }
+
+              dataLines.forEach((line, rOffset) => {
+                const targetRowIdx = activeFocusedCell.rowIndex + rOffset;
+                const cells = line.split("\t").map((cell) => cell.trim());
+
+                if (targetRowIdx < tableData.length) {
+                  const targetRow = tableData[targetRowIdx];
+                  const targetRowId = getRowKey(targetRow);
+                  const changes = {};
+
+                  cells.forEach((cellVal, cOffset) => {
+                    let fieldName = null;
+                    if (isHeaderRow && headerMapping) {
+                      fieldName = headerMapping[cOffset];
+                    } else {
+                      const targetColIdx = startFieldIdx + cOffset;
+                      if (targetColIdx < FORM_FIELDS_ORDER.length) {
+                        fieldName = FORM_FIELDS_ORDER[targetColIdx];
+                      }
+                    }
+
+                    if (fieldName && cellVal !== "") {
+                      if (fieldName === "fyCd") {
+                        changes.fyCd = cellVal;
+                      } else if (fieldName === "fyDesc") {
+                        changes.fyDesc = cellVal;
+                      } else if (fieldName === "status") {
+                        const { statusCd, statusName } = resolveStatus(cellVal);
+                        changes.statusCd = statusCd;
+                        changes.statusName = statusName;
+                      } else if (fieldName === "rateType") {
+                        const { closeActTgtCd, rateName } = resolveRateType(cellVal);
+                        changes.closeActTgtCd = closeActTgtCd;
+                        changes.rateName = rateName;
+                      }
+                    }
+                  });
+
+                  updatesMap[targetRowId] = changes;
+                } else {
+                  const tempIdVal = `PASTE_${Date.now()}_${rOffset}_${Math.random().toString(36).substr(2, 5)}`;
+                  const newRow = {
+                    fyCd: "",
+                    fyDesc: "",
+                    statusCd: "O",
+                    statusName: "Open",
+                    closeActTgtCd: "",
+                    rateName: "None",
+                    companyId: "1",
+                    tempId: tempIdVal,
+                    tableRowKey: tempIdVal,
+                    isDirty: true,
+                  };
+
+                  cells.forEach((cellVal, cOffset) => {
+                    let fieldName = null;
+                    if (isHeaderRow && headerMapping) {
+                      fieldName = headerMapping[cOffset];
+                    } else {
+                      const targetColIdx = cOffset;
+                      if (targetColIdx < FORM_FIELDS_ORDER.length) {
+                        fieldName = FORM_FIELDS_ORDER[targetColIdx];
+                      }
+                    }
+
+                    if (fieldName && cellVal !== "") {
+                      if (fieldName === "fyCd") {
+                        newRow.fyCd = cellVal;
+                      } else if (fieldName === "fyDesc") {
+                        newRow.fyDesc = cellVal;
+                      } else if (fieldName === "status") {
+                        const { statusCd, statusName } = resolveStatus(cellVal);
+                        newRow.statusCd = statusCd;
+                        newRow.statusName = statusName;
+                      } else if (fieldName === "rateType") {
+                        const { closeActTgtCd, rateName } = resolveRateType(cellVal);
+                        newRow.closeActTgtCd = closeActTgtCd;
+                        newRow.rateName = rateName;
+                      }
+                    }
+                  });
+
+                  newPastedRows.push(newRow);
+                }
+              });
+
+              if (Object.keys(updatesMap).length > 0 || newPastedRows.length > 0) {
+                if (Object.keys(updatesMap).length > 0) {
+                  handleBatchRowsUpdate(updatesMap);
+                }
+                if (newPastedRows.length > 0) {
+                  setFycd((prev) => [...prev, ...newPastedRows]);
+                }
+                toast.success("Fields pasted successfully.");
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) => headerKeys.includes(cell));
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
+    }
+
+    let fyCdIdx = -1;
+    let fyDescIdx = -1;
+    let statusIdx = -1;
+    let rateTypeIdx = -1;
+
+    if (isHeaderRow) {
+      fyCdIdx = firstLineCells.findIndex((cell) =>
+        ["fiscal year", "fycd", "year"].includes(cell),
+      );
+      fyDescIdx = firstLineCells.findIndex((cell) =>
+        ["description", "fydesc", "desc"].includes(cell),
+      );
+      statusIdx = firstLineCells.findIndex((cell) =>
+        ["status", "statuscd", "statusname"].includes(cell),
+      );
+      rateTypeIdx = firstLineCells.findIndex((cell) =>
+        ["rate type", "ratetype", "closeacttgtcd", "ratename"].includes(cell),
+      );
+    } else {
+      fyCdIdx = 0;
+      fyDescIdx = 1;
+      statusIdx = 2;
+      rateTypeIdx = 3;
+    }
+
+    const pastedRows = [];
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t");
+
+      const rawFyCd =
+        fyCdIdx !== -1 && fyCdIdx < cells.length ? cells[fyCdIdx].trim() : "";
+      const rawFyDesc =
+        fyDescIdx !== -1 && fyDescIdx < cells.length
+          ? cells[fyDescIdx].trim()
+          : "";
+      const rawStatus =
+        statusIdx !== -1 && statusIdx < cells.length
+          ? cells[statusIdx].trim()
+          : "";
+      const rawRateType =
+        rateTypeIdx !== -1 && rateTypeIdx < cells.length
+          ? cells[rateTypeIdx].trim()
+          : "";
+
+      if (!rawFyCd && !rawFyDesc && !rawStatus && !rawRateType) {
+        return;
+      }
+
+      const { statusCd, statusName } = resolveStatus(rawStatus);
+      const { closeActTgtCd, rateName } = resolveRateType(rawRateType);
+
+      const tempIdVal = `PASTE_${Date.now()}_${i}_${Math.random()
+        .toString(36)
+        .substr(2, 5)}`;
+
+      pastedRows.push({
+        fyCd: rawFyCd,
+        fyDesc: rawFyDesc || (rawFyCd ? `Fiscal Year ${rawFyCd}` : ""),
+        statusCd,
+        statusName,
+        closeActTgtCd,
+        rateName,
+        companyId: "1",
+        tempId: tempIdVal,
+        tableRowKey: tempIdVal,
+        isDirty: true,
+      });
+    });
+
+    if (pastedRows.length === 0) {
+      return toast.warn("No valid rows parsed from clipboard.");
+    }
+
+    setFycd((prev) => [...pastedRows, ...prev]);
+
+    setSelectedFycdRow(pastedRows[0]);
+    setSelectedRows([pastedRows[0]]);
+
+    toast.success(`${pastedRows.length} record(s) pasted.`);
   };
 
   const handleCopy = () => {
     if (selectedRows.length === 0)
       return toast.warn("Select at least one record to copy.");
 
-    console.log(selectedRows);
-    // Copy all selected rows, not just the active one
     setClipboard([...selectedRows]);
-    toast.success(`${selectedRows.length} record(s) copied to clipboard`);
+    setHasCopied(true);
+
+    const header = "Fiscal Year\tDescription\tStatus\tRate Type";
+    const rows = selectedRows
+      .map((row) => {
+        const fyCd = row.fyCd || "";
+        const fyDesc = row.fyDesc || "";
+        const statusName =
+          row.statusName ||
+          statusOpt.find((o) => o.statusCd === row.statusCd)?.name ||
+          "";
+        const rateName =
+          row.rateName ||
+          rateOpt.find((o) => o.closeActTgtCd === row.closeActTgtCd)?.name ||
+          "";
+        return `${fyCd}\t${fyDesc}\t${statusName}\t${rateName}`;
+      })
+      .join("\n");
+
+    const tsvContent = `${header}\n${rows}`;
+
+    navigator.clipboard
+      .writeText(tsvContent)
+      .then(() => {
+        toast.success(`${selectedRows.length} record(s) copied to clipboard`);
+      })
+      .catch((err) => {
+        console.error("Failed to copy to system clipboard:", err);
+        toast.warn(`${selectedRows.length} record(s) copied internally.`);
+      });
   };
 
-  const handlePaste = () => {
-    if (!clipboard.length) return toast.warn("Clipboard is empty.");
+  const handlePaste = async () => {
+    if (clipboard && clipboard.length > 0 && !clipboard[0]?.isDummy) {
+      const pasted = clipboard.map((row, i) => {
+        const clonedRow = JSON.parse(JSON.stringify(row));
+        const { tempId, id, fyCd, ...restProps } = clonedRow;
+        const tempIdVal = `PASTE_${Date.now()}_${i}`;
+        return {
+          ...restProps,
+          fyCd: fyCd || "",
+          tempId: tempIdVal,
+          tableRowKey: tempIdVal,
+          isDirty: true,
+        };
+      });
 
-    const pasted = clipboard.map((row, i) => {
-      // 1. Remove database-specific IDs and existing primary keys
-      const { tempId, id, fyCd, ...restProps } = row;
+      setFycd((prev) => [...pasted, ...prev]);
+      setSelectedFycdRow(pasted[0]);
+      setSelectedRows([pasted[0]]);
+      toast.success(`${pasted.length} record(s) pasted.`);
+      return;
+    }
 
-      return {
-        ...restProps, // Keeps statusName, rateName, fyDesc, etc.
-        fyCd: "", // User must provide a new unique Fiscal Year code
-        tempId: `PASTE_${Date.now()}_${i}`,
-        isDirty: true,
-      };
-    });
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        processPastedText(text);
+        return;
+      }
+    } catch (err) {
+      console.warn(
+        "System clipboard access failed, falling back to local memory paste",
+        err,
+      );
+    }
 
-    // 2. Add to the top of the list
-    setFycd((prev) => [...pasted, ...prev]);
-
-    // 3. Focus on the first pasted item
-    setSelectedFycdRow(pasted[0]);
-    setSelectedRows([pasted[0]]);
-    // setIsFormView(true);
-
-    toast.success(
-      `${pasted.length} record(s) pasted. Please enter new Fiscal Year codes.`,
-    );
+    toast.warn("Clipboard is empty.");
   };
+
+  useEffect(() => {
+    const handleGlobalPaste = (e) => {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+      const text = clipboardData.getData("text");
+      if (!text || !text.trim()) return;
+
+      const isInput =
+        e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+      const hasStructure = text.includes("\t") || text.includes("\n");
+
+      if (isInput && !hasStructure) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      processPastedText(text);
+    };
+
+    document.addEventListener("paste", handleGlobalPaste);
+    return () => document.removeEventListener("paste", handleGlobalPaste);
+  }, [fycd, clipboard]);
+
+  useEffect(() => {
+    const syncClipboardWithSystem = async () => {
+      try {
+        if (!navigator.permissions || !navigator.permissions.query) return;
+        const permission = await navigator.permissions.query({ name: "clipboard-read" });
+        if (permission.state === "granted") {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim()) {
+            setClipboard((prev) => (prev.length === 0 || prev[0]?.isDummy ? [{ isDummy: true }] : prev));
+          } else {
+            setClipboard((prev) => (prev.length > 0 && prev[0]?.isDummy ? [] : prev));
+          }
+        }
+      } catch (err) {
+        // Fallback for browsers that don't support query/clipboard-read
+      }
+    };
+
+    window.addEventListener("focus", syncClipboardWithSystem);
+    syncClipboardWithSystem();
+    return () => window.removeEventListener("focus", syncClipboardWithSystem);
+  }, []);
 
   // const handleClear = () => {
   //   // 1. Identify if there are any temporary "NEW" rows or unsaved edits
@@ -3072,20 +3689,23 @@ const ManageFiscalYear = ({ canEdit }) => {
   // };
 
   const handleClear = () => {
-    const hasNewRows = fycd.some((f) => !!f.tempId) || isMapping;
+    const hasNewRows = fycd.some((f) => !!f.tempId);
     const hasEdits = fycd.some((f) => f.isDirty === true);
 
     if (!hasNewRows && !hasEdits) return;
 
     if (window.confirm("Discard unsaved changes and new rows?")) {
-      // 1. Immediately clear selection states to prevent "Bad Data" in Form View
-      setSelectedRows([]);
-      setSelectedFycdRow(null);
-      setFilteredGroups([]);
-      setFycd([]);
+      setFocusedCell(null);
+      // 1. Keep saved rows and only filter out new unsaved ones locally
+      setFycd((prev) => prev.filter((f) => !f.tempId));
 
-      // 2. Re-fetch fresh data
-      fetchData(true);
+      // 2. Re-fetch original data from server to overwrite dirty edits
+      fetchData();
+
+      // 3. Reset selection/mapping states
+      setFilteredGroups([]);
+      setSelectedRows([]);
+      setIsMapping(false);
 
       toast.info("Unsaved changes discarded.");
     }
@@ -3098,7 +3718,7 @@ const ManageFiscalYear = ({ canEdit }) => {
       return toast.warn("No changes to save");
     }
 
-    setLoading(true);
+    startLoading();
     try {
       await Promise.all(
         changedRows.map((row) => {
@@ -3141,7 +3761,7 @@ const ManageFiscalYear = ({ canEdit }) => {
       console.error("Save Error:", e);
       toast.error(e.response?.data?.message || "Save failed.");
     } finally {
-      setLoading(false);
+      stopLoading();
     }
   };
 
@@ -3249,6 +3869,7 @@ const ManageFiscalYear = ({ canEdit }) => {
   };
 
   const toggleView = () => {
+    setFocusedCell(null);
     if (!isFormView) {
       // If moving FROM Table TO Form:
       // If the user unchecked everything, default back to the first row
@@ -3277,7 +3898,7 @@ const ManageFiscalYear = ({ canEdit }) => {
     <div className="p-4 space-y-4 animate-in z-10 fade-in duration-500">
       <MainContainer icon={CalendarDays} title="Fiscal Year">
         <Toolbar
-          clipboard={clipboard}
+          clipboard={hasCopied ? clipboard : []}
           rowKey={"fyCd"}
           isFormView={isFormView}
           isReplaceMode={isReplaceMode}
@@ -3319,7 +3940,51 @@ const ManageFiscalYear = ({ canEdit }) => {
         />
 
         {isFormView ? (
-          <div className="p-5 bg-white border border-slate-200/80 shadow-sm rounded mb-4">
+          <div
+            className="p-5 bg-white border border-slate-200/80 shadow-sm rounded mb-4"
+            onFocusCapture={(e) => {
+              const labelEl = e.target.closest(".flex")?.querySelector("label");
+              if (!labelEl) return;
+              const labelText = labelEl.textContent || "";
+              const cleanLabel = labelText.replace(/[*]/g, "").trim().toLowerCase();
+              
+              let fieldName = null;
+              if (cleanLabel.includes("fiscal year")) {
+                fieldName = "fyCd";
+              } else if (cleanLabel.includes("description")) {
+                fieldName = "fyDesc";
+              } else if (cleanLabel.includes("status")) {
+                fieldName = "status";
+              } else if (cleanLabel.includes("rate type")) {
+                fieldName = "rateType";
+              }
+              
+              if (fieldName) {
+                setFocusedCell({ view: "form", fieldName });
+              }
+            }}
+            onMouseDownCapture={(e) => {
+              const labelEl = e.target.closest(".flex")?.querySelector("label");
+              if (!labelEl) return;
+              const labelText = labelEl.textContent || "";
+              const cleanLabel = labelText.replace(/[*]/g, "").trim().toLowerCase();
+              
+              let fieldName = null;
+              if (cleanLabel.includes("fiscal year")) {
+                fieldName = "fyCd";
+              } else if (cleanLabel.includes("description")) {
+                fieldName = "fyDesc";
+              } else if (cleanLabel.includes("status")) {
+                fieldName = "status";
+              } else if (cleanLabel.includes("rate type")) {
+                fieldName = "rateType";
+              }
+              
+              if (fieldName) {
+                setFocusedCell({ view: "form", fieldName });
+              }
+            }}
+          >
             <style>{`
               .relative.rounded.border {
                 background-color: white !important;
@@ -3343,7 +4008,6 @@ const ManageFiscalYear = ({ canEdit }) => {
                   label="Fiscal Year"
                   required
                   value={selectedFycdRow?.fyCd || ""}
-                  readOnly={!!selectedFycdRow?.id && !selectedFycdRow?.tempId}
                   onChange={(e) =>
                     handleFieldChange(
                       getRowKey(selectedFycdRow || {}),
@@ -3412,20 +4076,77 @@ const ManageFiscalYear = ({ canEdit }) => {
             </FormSection>
           </div>
         ) : (
-          <ReusableTable
-            data={filteredGroups.length > 0 ? filteredGroups : fycd}
-            columns={myColumns}
-            // rowKey={(row) => getRowKey(row)}
-            // rowKey={selectedFycdRow?.tempId ? "tempId" : "fyCd"}
-            rowKey={(row) => row.tempId || row.fyCd}
-            doubleclick={handleRowDoubleClick}
-            showCheckboxes={true}
-            selectedRows={selectedRows} // Now an array
-            onRowSelect={handleRowSelection}
-            onSelectAll={handleSelectAll} // Added Select All feature
-            onFieldChange={handleFieldChange}
-            maxHeight="max-h-[500px]"
-          />
+          <div
+            onFocusCapture={(e) => {
+              const tr = e.target.closest("tr");
+              const td = e.target.closest("td");
+              if (!tr || !td) return;
+
+              const rowIndex = tr.sectionRowIndex;
+              const siblingTds = Array.from(tr.querySelectorAll("td"));
+              const tdIndex = siblingTds.indexOf(td);
+              const colIndex = tdIndex - 1; 
+              if (colIndex >= 0 && colIndex < myColumns.length) {
+                const colKey = myColumns[colIndex].key;
+                
+                let fieldName = null;
+                if (colKey === "fyCd") {
+                  fieldName = "fyCd";
+                } else if (colKey === "fyDesc") {
+                  fieldName = "fyDesc";
+                } else if (colKey === "statusName") {
+                  fieldName = "status";
+                } else if (colKey === "rateName") {
+                  fieldName = "rateType";
+                }
+                
+                if (fieldName) {
+                  setFocusedCell({ view: "table", rowIndex, fieldName });
+                }
+              }
+            }}
+            onMouseDownCapture={(e) => {
+              const tr = e.target.closest("tr");
+              const td = e.target.closest("td");
+              if (!tr || !td) return;
+
+              const rowIndex = tr.sectionRowIndex;
+              const siblingTds = Array.from(tr.querySelectorAll("td"));
+              const tdIndex = siblingTds.indexOf(td);
+              const colIndex = tdIndex - 1; 
+              if (colIndex >= 0 && colIndex < myColumns.length) {
+                const colKey = myColumns[colIndex].key;
+                
+                let fieldName = null;
+                if (colKey === "fyCd") {
+                  fieldName = "fyCd";
+                } else if (colKey === "fyDesc") {
+                  fieldName = "fyDesc";
+                } else if (colKey === "statusName") {
+                  fieldName = "status";
+                } else if (colKey === "rateName") {
+                  fieldName = "rateType";
+                }
+                
+                if (fieldName) {
+                  setFocusedCell({ view: "table", rowIndex, fieldName });
+                }
+              }
+            }}
+          >
+            <ReusableTable
+              data={filteredGroups.length > 0 ? filteredGroups : fycd}
+              columns={myColumns}
+              rowKey="tableRowKey"
+              doubleclick={handleRowDoubleClick}
+              showCheckboxes={true}
+              selectedRows={selectedRows} // Now an array
+              onRowSelect={handleRowSelection}
+              onSelectAll={handleSelectAll} // Added Select All feature
+              onFieldChange={handleFieldChange}
+              maxHeight="max-h-[500px]"
+            />
+          </div>
         )}
       </MainContainer>
       {showSubModal && (

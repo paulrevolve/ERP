@@ -267,7 +267,7 @@ const ManageCountry = () => {
 
   const fetchStatesForCountry = async (countryCode) => {
     try {
-      const response = await axios.get(`http://localhost:5044/api/states?countryCode=${countryCode}`);
+      const response = await axios.get(`${backendUrl}/api/states?countryCode=${countryCode}`);
       return response.data.map(s => ({
         ...s,
         state: s.stateName,
@@ -282,7 +282,7 @@ const ManageCountry = () => {
 
   const fetchPostalCodesForState = async (countryCode, stateCode) => {
     try {
-      const response = await axios.get(`http://localhost:5044/api/postal-codes?countryCode=${countryCode}&stateCode=${stateCode}`);
+      const response = await axios.get(`${backendUrl}/api/postal-codes?countryCode=${countryCode}&stateCode=${stateCode}`);
       return response.data.map(p => ({
         ...p,
         postalCode: p.postalCd,
@@ -298,7 +298,7 @@ const ManageCountry = () => {
   const fetchCountries = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5044/api/countries`);
+      const response = await axios.get(`${backendUrl}/api/countries`);
       if (response.data && response.data.length > 0) {
         let mapped = response.data.map(c => ({
           ...c,
@@ -492,9 +492,9 @@ const ManageCountry = () => {
           changedBy: country.modifiedBy || "Admin"
         };
         if (country.isNew) {
-          await axios.post(`http://localhost:5044/api/countries`, payload);
+          await axios.post(`${backendUrl}/api/countries`, payload);
         } else {
-          await axios.put(`http://localhost:5044/api/countries/${country.countryCode}`, payload);
+          await axios.put(`${backendUrl}/api/countries/${country.countryCode}`, payload);
         }
       }
 
@@ -511,9 +511,9 @@ const ManageCountry = () => {
             changedBy: state.changedBy || "Admin"
           };
           if (state.isNew) {
-            await axios.post(`http://localhost:5044/api/states`, payload);
+            await axios.post(`${backendUrl}/api/states`, payload);
           } else {
-            await axios.put(`http://localhost:5044/api/states/${country.countryCode}/${state.stateCode}`, payload);
+            await axios.put(`${backendUrl}/api/states/${country.countryCode}/${state.stateCode}`, payload);
           }
         }
       }
@@ -534,10 +534,10 @@ const ManageCountry = () => {
               changedBy: pc.changedBy || "Admin"
             };
             if (pc.isNew) {
-              const res = await axios.post(`http://localhost:5044/api/postal-codes`, payload);
+              const res = await axios.post(`${backendUrl}/api/postal-codes`, payload);
               pc.postalKey = res.data.postalKey;
             } else {
-              await axios.put(`http://localhost:5044/api/postal-codes/${pc.postalKey}`, payload);
+              await axios.put(`${backendUrl}/api/postal-codes/${pc.postalKey}`, payload);
             }
           }
         }
@@ -578,7 +578,7 @@ const ManageCountry = () => {
         } else {
           const country = countries.find(c => getRowKey(c) === id);
           if (country) {
-            await axios.delete(`http://localhost:5044/api/countries/${country.countryCode}`);
+            await axios.delete(`${backendUrl}/api/countries/${country.countryCode}`);
             setCountries((prev) => prev.filter((item) => item.countryCode !== country.countryCode));
           }
         }
@@ -891,7 +891,7 @@ const ManageCountry = () => {
             // just remove locally
           } else {
             const countryCode = state.countryCode || selectedCountry?.countryCode;
-            await axios.delete(`http://localhost:5044/api/states/${countryCode}/${state.stateCode}`);
+            await axios.delete(`${backendUrl}/api/states/${countryCode}/${state.stateCode}`);
           }
         }
       }
@@ -1129,7 +1129,7 @@ const ManageCountry = () => {
           if (pc.isNew) {
             // just remove locally
           } else {
-            await axios.delete(`http://localhost:5044/api/postal-codes/${pc.postalKey}`);
+            await axios.delete(`${backendUrl}/api/postal-codes/${pc.postalKey}`);
           }
         }
       }

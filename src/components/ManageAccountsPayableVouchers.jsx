@@ -8,6 +8,7 @@ import {
 import { MainContainer, Toolbar, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
 import api from "../utils/api";
+import { backendUrl } from "./config";
 
 const PaymentVoucherIcon = () => (
   <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm -mr-2.5 flex items-center justify-center">
@@ -494,7 +495,7 @@ const childColumns = [
   }
 ];
 
-const apiBaseUrl = "http://localhost:5044/api/accounts-payable-vouchers";
+const apiBaseUrl = `${backendUrl}/api/accounts-payable-vouchers`;
 const masterDataBaseUrl = "https://finaxis-dev.onrender.com";
 const defaultCompanyId = "1";
 const defaultFiscalYear = "2027";
@@ -1503,7 +1504,7 @@ const ManageAccountsPayableVouchers = () => {
         getJson(`${masterDataBaseUrl}/api/Account/GetAllAccounts`),
         getJson(`${masterDataBaseUrl}/Orgnization/GetAllOrgs`),
         getJson(`${masterDataBaseUrl}/Project/GetAllProjects`),
-        api.get("http://localhost:5044/api/sales-taxes")
+        api.get(`${backendUrl}/api/sales-taxes`)
       ]);
 
       if (accountsResponse.status === "fulfilled") {

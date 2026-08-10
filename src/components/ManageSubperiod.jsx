@@ -3,19 +3,232 @@ import React, { useEffect, useState, useRef } from "react";
 import { backendUrl } from "./config";
 import { toast } from "react-toastify";
 import api from "../utils/api";
-import { CalendarDays, Calendar } from "lucide-react";
+import { CalendarDays, Calendar, Search } from "lucide-react";
 import {
   MainContainer,
   SecondaryContainer,
   Toolbar,
 } from "../helper/container";
 import {
-  FormSearchSelect,
-  FormInput,
-  FormSection,
   ActionDetailButton,
 } from "../helper/formSection";
 import ReusableTable from "../helper/tableSection";
+
+const FormSection = ({ title, children, className = "" }) => {
+  return (
+    <div className={`relative rounded border border-slate-200 bg-white py-3 px-3 shadow-none ${className}`}>
+      {title && (
+        <div className="flex items-center gap-2 pb-1.5 mb-2.5 border-b border-slate-200 select-none">
+          <span className="text-xs font-bold text-gray-700">
+            {title}
+          </span>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const FormInput = ({
+  label,
+  required,
+  type = "text",
+  value,
+  checked,
+  onChange,
+  onBlur,
+  readOnly,
+  disabled,
+  className = "",
+  placeholder,
+  horizontal,
+  inputClassName = "",
+}) => {
+  const isClickable = type === "checkbox" || type === "radio";
+
+  if (isClickable) {
+    return (
+      <div className="w-full flex items-center pt-0.5 pb-0.5">
+        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
+          <input
+            type={type}
+            checked={checked}
+            onChange={onChange}
+            disabled={disabled}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
+          />
+          <span className="text-[11px] font-semibold text-slate-700">{label}</span>
+        </label>
+      </div>
+    );
+  }
+
+  if (horizontal) {
+    return (
+      <div className={`flex items-center justify-between gap-4 w-full ${className}`}>
+        {label && (
+          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
+            {label} {required && <span className="text-red-500">*</span>}
+          </span>
+        )}
+        <div className="w-3/5">
+          <input
+            type={type}
+            value={value ?? ""}
+            onChange={onChange}
+            onBlur={onBlur}
+            readOnly={readOnly}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+              ${readOnly || disabled 
+                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
+                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+              }`}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex flex-col gap-1 w-full ${className}`}>
+      {label && (
+        <span className="text-xs font-semibold text-slate-700 select-none">
+          {label} {required && <span className="text-red-500">*</span>}
+        </span>
+      )}
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={onChange}
+        onBlur={onBlur}
+        readOnly={readOnly}
+        disabled={disabled}
+        placeholder={placeholder}
+        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+          ${readOnly || disabled 
+            ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
+            : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+          }`}
+      />
+    </div>
+  );
+};
+
+const FormSearchSelect = ({
+  label,
+  value,
+  searchTerm = "",
+  setSearchTerm,
+  options,
+  onSelect,
+  displayKey,
+  secondaryKey,
+  disabled,
+  placeholder = "",
+}) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [localSearch, setLocalSearch] = useState("");
+
+  const searchVal = setSearchTerm ? searchTerm : localSearch;
+  const setSearchVal = setSearchTerm ? setSearchTerm : setLocalSearch;
+
+  const selectedOption = options?.find((opt) => {
+    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey]];
+    return candidateKeys.some((key) => String(key) === String(value));
+  });
+
+  const filteredOptions = (options || []).filter((opt) => {
+    const search = searchVal.toLowerCase().trim();
+    if (!search) return true;
+    const mainValue = String(opt[displayKey] || "").toLowerCase();
+    const subValue = secondaryKey ? String(opt[secondaryKey] || "").toLowerCase() : "";
+    return mainValue.includes(search) || subValue.includes(search);
+  });
+
+  const inputValue = isTyping
+    ? searchVal
+    : selectedOption
+    ? selectedOption[displayKey]
+    : searchVal || value || "";
+
+  return (
+    <div className="flex flex-col gap-1 w-full relative">
+      {label && (
+        <span className="text-xs font-semibold text-slate-700 select-none">
+          {label}
+        </span>
+      )}
+      <div className="relative">
+        <input
+          type="text"
+          disabled={disabled}
+          value={inputValue}
+          placeholder={placeholder}
+          onChange={(e) => {
+            setIsTyping(true);
+            setSearchVal(e.target.value);
+            setShowDropdown(true);
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setIsTyping(false);
+            }, 200);
+          }}
+          onFocus={() => !disabled && setShowDropdown(true)}
+          className={`w-full pl-2 pr-8 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none
+            ${disabled
+              ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+              : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+            }`}
+        />
+        <div
+          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400"
+          onClick={() => !disabled && setShowDropdown(!showDropdown)}
+        >
+          <Search size={12} />
+        </div>
+
+        {showDropdown && !disabled && (
+          <>
+            <div className="absolute left-0 top-full z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((opt, idx) => (
+                  <div
+                    key={idx}
+                    className="px-3 py-2 text-[11px] hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none font-medium text-slate-700"
+                    onClick={() => {
+                      onSelect(opt);
+                      setSearchVal("");
+                      setShowDropdown(false);
+                    }}
+                  >
+                    <span>{opt[displayKey]}</span>
+                    {secondaryKey && opt[secondaryKey] && (
+                      <span className="text-slate-400 ml-2">({opt[secondaryKey]})</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="px-3 py-4 text-[11px] text-slate-400 italic text-center">
+                  No matches
+                </div>
+              )}
+            </div>
+            <div
+              className="fixed inset-0 z-[90]"
+              onClick={() => setShowDropdown(false)}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const ManageSubperiod = ({ canEdit }) => {
   // --- Data States ---
@@ -1152,10 +1365,33 @@ const ManageSubperiod = ({ canEdit }) => {
         />
 
         {isFormView ? (
-          <div className="space-y-1 p-1 py-2">
-            <FormSection>
-              {/* 1. Header Row: Fiscal Year and Period Number */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2 pb-2">
+          <div className="space-y-4">
+            <style>{`
+              .relative.rounded.border {
+                background-color: white !important;
+                border: 1px solid #e2e8f0 !important;
+                box-shadow: none !important;
+              }
+              .relative.rounded.border > span.absolute {
+                background-color: white !important;
+                color: #475569 !important;
+                font-weight: 400 !important;
+                font-size: 11px !important;
+              }
+              .z-30.overflow-visible h2 {
+                font-weight: 700 !important;
+                color: #1f2937 !important;
+              }
+            `}</style>
+            
+            {/* Subperiod Form Container */}
+            <div className="p-5 bg-white border border-slate-200/80 shadow-sm rounded mb-4">
+              <div className="flex items-center gap-2 mb-3 border-b-2 border-slate-300 pb-3 select-none">
+                <span className="text-lg font-bold text-gray-800">
+                  Subperiod Header
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-5 gap-y-3">
                 <FormSearchSelect
                   label="Fiscal Year *"
                   required
@@ -1216,239 +1452,234 @@ const ManageSubperiod = ({ canEdit }) => {
                   }
                 />
               </div>
+            </div>
 
-              {/* 2. Main Details Section */}
-              <FormSection title="Period Details">
-                <div className="grid grid-cols-1 gap-8">
-                  {/* Left Column: Date and Status */}
+            {/* 2. Main Details Section */}
+            <FormSection title="Period Details">
+              <div className="space-y-4">
+                {/* Date Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-1 w-full relative group">
+                    <span className="text-xs font-semibold text-slate-700 select-none">
+                      Subperiod End Date
+                    </span>
 
-                  <div className="space-y-4 ">
-                    <div className="grid grid-cols-3">
-                      <div className=" flex items-center gap-3 relative group">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Subperiod End Date
-                        </label>
-
-                        <div className="relative flex items-center">
-                          <input
-                            type="text"
-                            className="w-full p-1 text-[10px] border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-                            placeholder="MM-DD-YYYY"
-                            value={(() => {
-                              const val = selectedFycdRow?.subPeriodEndDate;
-                              if (!val) return "";
-                              const datePart = val.includes("T")
-                                ? val.split("T")[0]
-                                : val;
-                              const parts = datePart.split("-");
-                              // Format YYYY-MM-DD to MM-DD-YYYY for display
-                              if (parts.length === 3 && parts[0].length === 4) {
-                                return `${parts[1]}-${parts[2]}-${parts[0]}`;
-                              }
-                              return datePart;
-                            })()}
-                            onChange={(e) => {
-                              // 1. Remove non-numeric characters
-                              let raw = e.target.value.replace(/\D/g, "");
-                              if (raw.length > 8) raw = raw.slice(0, 8);
-
-                              // 2. VALIDATION: Month (Max 12)
-                              if (raw.length >= 2) {
-                                let month = parseInt(raw.slice(0, 2), 10);
-                                if (month > 12) raw = "12" + raw.slice(2);
-                                else if (raw.slice(0, 2) === "00")
-                                  raw = "01" + raw.slice(2);
-                              }
-
-                              // 3. VALIDATION: Day (Max 31)
-                              if (raw.length >= 4) {
-                                let monthPart = raw.slice(0, 2);
-                                let dayPart = raw.slice(2, 4);
-                                let day = parseInt(dayPart, 10);
-                                if (day > 31)
-                                  raw = monthPart + "31" + raw.slice(4);
-                                else if (dayPart === "00")
-                                  raw = monthPart + "01" + raw.slice(4);
-                              }
-
-                              // 4. Apply Mask: MM-DD-YYYY
-                              let formatted = raw;
-                              if (raw.length > 2 && raw.length <= 4) {
-                                formatted = `${raw.slice(0, 2)}-${raw.slice(2)}`;
-                              } else if (raw.length > 4) {
-                                formatted = `${raw.slice(0, 2)}-${raw.slice(2, 4)}-${raw.slice(4)}`;
-                              }
-
-                              const id = getRowKey(selectedFycdRow);
-
-                              // 5. Update State
-                              if (raw.length === 8) {
-                                const mm = raw.slice(0, 2);
-                                const dd = raw.slice(2, 4);
-                                const yyyy = raw.slice(4);
-                                // Sync to state as YYYY-MM-DD for your API
-                                handleFieldChange(
-                                  id,
-                                  "subPeriodEndDate",
-                                  `${yyyy}-${mm}-${dd}`,
-                                );
-                                setShowDatePicker(false);
-                              } else {
-                                // Keep formatted mask (MM-DD) while typing
-                                handleFieldChange(
-                                  id,
-                                  "subPeriodEndDate",
-                                  formatted,
-                                );
-                              }
-                            }}
-                            onClick={() => {
-                              setDatePickerRowId(
-                                getRowKey(selectedFycdRow || {}),
-                              );
-                            }}
-                          />
-
-                          <div
-                            className="absolute right-3 cursor-pointer text-gray-400 hover:text-blue-600 transition-colors"
-                            onClick={() => {
-                              setDatePickerRowId(
-                                getRowKey(selectedFycdRow || {}),
-                              );
-                              setShowDatePicker(!showDatePicker);
-                            }}
-                          >
-                            <Calendar size={12} />
-                          </div>
-                        </div>
-
-                        {showDatePicker &&
-                          datePickerRowId ===
-                            getRowKey(selectedFycdRow || {}) && (
-                            <div className="absolute z-50 mt-1 right-0 shadow-xl border rounded-lg bg-white">
-                              {/* <CustomDatePicker
-                                selectedDate={
-                                  selectedFycdRow?.subPeriodEndDate?.length ===
-                                    10 &&
-                                  selectedFycdRow.subPeriodEndDate.includes("-")
-                                    ? selectedFycdRow.subPeriodEndDate.split(
-                                        "T",
-                                      )[0]
-                                    : ""
-                                }
-                                onChange={(date) => {
-                                  handleFieldChange(
-                                    getRowKey(selectedFycdRow),
-                                    "subPeriodEndDate",
-                                    date,
-                                  );
-                                  setShowDatePicker(false);
-                                }}
-                                onClose={() => setShowDatePicker(false)}
-                              /> */}
-                            </div>
-                          )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-row items-center justify-between gap-4 w-full">
-                      {/* Left Section: Status */}
-                      <div className="flex-1">
-                        <FormSection title="Status">
-                          <div className="flex gap-6">
-                            {statusOpt.map((opt) => (
-                              <label
-                                key={opt.statusCd}
-                                className="flex items-center gap-2 text-xs cursor-pointer text-gray-700 "
-                              >
-                                <input
-                                  type="radio"
-                                  name="status"
-                                  className="w-3 h-3 text-blue-600 focus:ring-blue-500"
-                                  checked={
-                                    selectedFycdRow?.statusCd === opt.statusCd
-                                  }
-                                  onChange={() =>
-                                    handleFieldChange(
-                                      getRowKey(selectedFycdRow),
-                                      "statusCd",
-                                      opt.statusCd,
-                                    )
-                                  }
-                                />
-                                {opt.name}
-                              </label>
-                            ))}
-                          </div>
-                        </FormSection>
-                      </div>
-
-                      {/* Middle Section: Adjustment Checkbox (Lowered to align with row) */}
-                      <div className="flex items-center gap-2 pb-3 min-w-fit">
-                        <input
-                          type="checkbox"
-                          id="isAdj"
-                          className="w-3 h-3 rounded text-blue-600 cursor-pointer"
-                          checked={selectedFycdRow?.isAdjustment === "Y"}
-                          onChange={(e) =>
-                            handleFieldChange(
-                              getRowKey(selectedFycdRow),
-                              "isAdjustment",
-                              e.target.checked ? "Y" : "N",
-                            )
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        className="w-full pl-2 pr-8 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+                        placeholder="MM-DD-YYYY"
+                        value={(() => {
+                          const val = selectedFycdRow?.subPeriodEndDate;
+                          if (!val) return "";
+                          const datePart = val.includes("T")
+                            ? val.split("T")[0]
+                            : val;
+                          const parts = datePart.split("-");
+                          // Format YYYY-MM-DD to MM-DD-YYYY for display
+                          if (parts.length === 3 && parts[0].length === 4) {
+                            return `${parts[1]}-${parts[2]}-${parts[0]}`;
                           }
-                        />
-                        <label
-                          htmlFor="isAdj"
-                          className="text-xs font-semibold text-gray-700 cursor-pointer whitespace-nowrap"
-                        >
-                          Adjustment Period
-                        </label>
-                      </div>
+                          return datePart;
+                        })()}
+                        onChange={(e) => {
+                          // 1. Remove non-numeric characters
+                          let raw = e.target.value.replace(/\D/g, "");
+                          if (raw.length > 8) raw = raw.slice(0, 8);
 
-                      {/* Right Section: Adjustment Rate Type */}
-                      <div className="flex-1">
-                        <FormSection title="Adjustment Rate Type">
-                          <div
-                            className={`flex flex-col transition-opacity duration-300 ${
-                              selectedFycdRow?.isAdjustment !== "Y"
-                                ? "opacity-40 pointer-events-none"
-                                : "opacity-100"
-                            }`}
-                          >
-                            <div className="flex gap-6">
-                              {adjRateOpt.map((opt) => (
-                                <label
-                                  key={opt.adjustmentCode}
-                                  className="flex items-center gap-2 text-xs font-medium cursor-pointer text-gray-700"
-                                >
-                                  <input
-                                    type="radio"
-                                    name="adjRate"
-                                    className="w-3 h-3 text-blue-600"
-                                    checked={
-                                      selectedFycdRow?.adjustmentCode ===
-                                      opt.adjustmentCode
-                                    }
-                                    onChange={() =>
-                                      handleFieldChange(
-                                        getRowKey(selectedFycdRow),
-                                        "adjustmentCode",
-                                        opt.adjustmentCode,
-                                      )
-                                    }
-                                  />
-                                  {opt.name}
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        </FormSection>
+                          // 2. VALIDATION: Month (Max 12)
+                          if (raw.length >= 2) {
+                            let month = parseInt(raw.slice(0, 2), 10);
+                            if (month > 12) raw = "12" + raw.slice(2);
+                            else if (raw.slice(0, 2) === "00")
+                              raw = "01" + raw.slice(2);
+                          }
+
+                          // 3. VALIDATION: Day (Max 31)
+                          if (raw.length >= 4) {
+                            let monthPart = raw.slice(0, 2);
+                            let dayPart = raw.slice(2, 4);
+                            let day = parseInt(dayPart, 10);
+                            if (day > 31)
+                              raw = monthPart + "31" + raw.slice(4);
+                            else if (dayPart === "00")
+                              raw = monthPart + "01" + raw.slice(4);
+                          }
+
+                          // 4. Apply Mask: MM-DD-YYYY
+                          let formatted = raw;
+                          if (raw.length > 2 && raw.length <= 4) {
+                            formatted = `${raw.slice(0, 2)}-${raw.slice(2)}`;
+                          } else if (raw.length > 4) {
+                            formatted = `${raw.slice(0, 2)}-${raw.slice(2, 4)}-${raw.slice(4)}`;
+                          }
+
+                          const id = getRowKey(selectedFycdRow);
+
+                          // 5. Update State
+                          if (raw.length === 8) {
+                            const mm = raw.slice(0, 2);
+                            const dd = raw.slice(2, 4);
+                            const yyyy = raw.slice(4);
+                            // Sync to state as YYYY-MM-DD for your API
+                            handleFieldChange(
+                              id,
+                              "subPeriodEndDate",
+                              `${yyyy}-${mm}-${dd}`,
+                            );
+                            setShowDatePicker(false);
+                          } else {
+                            // Keep formatted mask (MM-DD) while typing
+                            handleFieldChange(
+                              id,
+                              "subPeriodEndDate",
+                              formatted,
+                            );
+                          }
+                        }}
+                        onClick={() => {
+                          setDatePickerRowId(
+                            getRowKey(selectedFycdRow || {}),
+                          );
+                        }}
+                      />
+
+                      <div
+                        className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-blue-600 transition-colors"
+                        onClick={() => {
+                          setDatePickerRowId(
+                            getRowKey(selectedFycdRow || {}),
+                          );
+                          setShowDatePicker(!showDatePicker);
+                        }}
+                      >
+                        <Calendar size={12} />
                       </div>
                     </div>
+
+                    {showDatePicker &&
+                      datePickerRowId ===
+                        getRowKey(selectedFycdRow || {}) && (
+                        <div className="absolute z-50 mt-1 right-0 shadow-xl border rounded-lg bg-white">
+                          {/* <CustomDatePicker
+                            selectedDate={
+                              selectedFycdRow?.subPeriodEndDate?.length ===
+                                10 &&
+                              selectedFycdRow.subPeriodEndDate.includes("-")
+                                ? selectedFycdRow.subPeriodEndDate.split(
+                                    "T",
+                                  )[0]
+                                : ""
+                            }
+                            onChange={(date) => {
+                              handleFieldChange(
+                                getRowKey(selectedFycdRow),
+                                "subPeriodEndDate",
+                                date,
+                              );
+                              setShowDatePicker(false);
+                            }}
+                            onClose={() => setShowDatePicker(false)}
+                          /> */}
+                        </div>
+                      )}
                   </div>
                 </div>
-              </FormSection>
+
+                {/* Status, Adjustment, Rate Type Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  {/* Status Section */}
+                  <div>
+                    <FormSection title="Status">
+                      <div className="grid grid-cols-2 gap-2">
+                        {statusOpt.map((opt) => (
+                          <label
+                            key={opt.statusCd}
+                            className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full"
+                          >
+                            <input
+                              type="radio"
+                              name="status"
+                              className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer accent-[#17414d]"
+                              checked={
+                                selectedFycdRow?.statusCd === opt.statusCd
+                              }
+                              onChange={() =>
+                                handleFieldChange(
+                                  getRowKey(selectedFycdRow),
+                                  "statusCd",
+                                  opt.statusCd,
+                                )
+                              }
+                            />
+                            <span className="text-[11px] font-semibold text-slate-700">{opt.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </FormSection>
+                  </div>
+
+                  {/* Adjustment checkbox wrapper */}
+                  <div className="flex flex-col gap-1 w-full pb-0.5 justify-end">
+                    <span className="text-xs font-semibold text-slate-700 select-none">Adjustment</span>
+                    <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
+                      <input
+                        type="checkbox"
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer accent-[#17414d]"
+                        checked={selectedFycdRow?.isAdjustment === "Y"}
+                        onChange={(e) =>
+                          handleFieldChange(
+                            getRowKey(selectedFycdRow),
+                            "isAdjustment",
+                            e.target.checked ? "Y" : "N",
+                          )
+                        }
+                      />
+                      <span className="text-[11px] font-semibold text-slate-700">Adjustment Period</span>
+                    </label>
+                  </div>
+
+                  {/* Adjustment Rate Type Section */}
+                  <div>
+                    <FormSection title="Adjustment Rate Type">
+                      <div
+                        className={`flex flex-col transition-opacity duration-300 ${
+                          selectedFycdRow?.isAdjustment !== "Y"
+                            ? "opacity-40 pointer-events-none"
+                            : "opacity-100"
+                        }`}
+                      >
+                        <div className="grid grid-cols-3 gap-2">
+                          {adjRateOpt.map((opt) => (
+                            <label
+                              key={opt.adjustmentCode}
+                              className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full"
+                            >
+                              <input
+                                type="radio"
+                                name="adjRate"
+                                className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer accent-[#17414d]"
+                                checked={
+                                  selectedFycdRow?.adjustmentCode ===
+                                  opt.adjustmentCode
+                                }
+                                onChange={() =>
+                                  handleFieldChange(
+                                    getRowKey(selectedFycdRow),
+                                    "adjustmentCode",
+                                    opt.adjustmentCode,
+                                  )
+                                }
+                              />
+                              <span className="text-[11px] font-semibold text-slate-700">{opt.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </FormSection>
+                  </div>
+                </div>
+              </div>
             </FormSection>
           </div>
         ) : (
