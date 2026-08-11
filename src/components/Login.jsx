@@ -460,7 +460,7 @@ const Login = ({ loadConfig }) => {
           await loadConfig();
         }
 
-        navigate("/dashboard/project-budget-status");
+        navigate("/dashboard");
       }
       // ❌ Other errors (401, 400, etc.)
       else {
