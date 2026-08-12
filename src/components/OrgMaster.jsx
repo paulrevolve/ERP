@@ -1806,135 +1806,39 @@ const OrgMaster = ({ canEdit }) => {
             </FormSection>
 
             <FormSection title="Organization Structures">
-              <div className="p-2">
-                <FormSection title="Top Level Organization">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-2">
-                    <div className="">
-                      <FormInput
-                        label="Abbreviation"
-                        value={activeGroupRow?.orgAbbrvCd || ""}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            activeGroupRow?.tempId || activeGroupRow?.orgId,
-                            "orgAbbrvCd",
-                            e.target.value,
-                          )
-                        }
-                      />
-                      <FormInput
-                        label="No of Levels"
-                        type="number"
-                        value={activeGroupRow?.lvlNo || ""}
-                        readOnly
-                        onChange={(e) =>
-                          handleFieldChange(
-                            activeGroupRow?.tempId || activeGroupRow?.orgId,
-                            "lvlNo",
-                            e.target.value,
-                          )
-                        }
-                      />
-                      <div className="flex items-center flex-wrap">
-                        <FormInput
-                          label="Company ID"
-                          value={activeGroupRow?.companyId || "1"}
-                          readOnly
-                        />
-                        <FormInput value={"Revolve"} readOnly />
-                      </div>
-                    </div>
-                    <div>
-                      <FormInput
-                        label="Active"
-                        type="checkbox"
-                        checked={activeGroupRow?.activeFl === "Y"}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            activeGroupRow?.tempId || activeGroupRow?.orgId,
-                            "activeFl",
-                            e.target.checked,
-                          )
-                        }
-                      />
-                      <FormInput
-                        label="Balance Sheet Level"
-                        type="number"
-                        required
-                        value={activeGroupRow?.balanceSheet || ""}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            activeGroupRow?.tempId || activeGroupRow?.orgId,
-                            "balanceSheet",
-                            e.target.value,
-                          )
-                        }
-                      />
-                      <div className="flex items-center flex-wrap">
-                        <FormSearchSelect
-                          label="Taxable Entity ID *"
-                          value={activeGroupRow?.taxbleEntityId}
-                          searchTerm={searchTermTaxable}
-                          setSearchTerm={setSearchTermTaxable}
-                          options={taxableEntity.filter(
-                            (t) =>
-                              String(t.taxableId)
-                                .toLowerCase()
-                                .includes(searchTermTaxable.toLowerCase()) ||
-                              t.taxableName
-                                .toLowerCase()
-                                .includes(searchTermTaxable.toLowerCase()),
-                          )}
-                          displayKey="taxableId"
-                          secondaryKey="taxableName"
-                          onSelect={(selectedOpt) => {
-                            // 1. Capture the stable ID for the current row
-                            const id =
-                              activeGroupRow?.tempId || activeGroupRow?.orgId;
-
-                            // 2. Update the ID field (number/string)
-                            handleFieldChange(
-                              id,
-                              "taxbleEntityId",
-                              selectedOpt.taxableId,
-                            );
-
-                            // 3. Update the Name field (string)
-                            handleFieldChange(
-                              id,
-                              "taxbleEntityName",
-                              selectedOpt.taxableName,
-                            );
-                          }}
-                        />
-
-                        {/* Read-only field to show the name associated with the ID */}
-                        <FormInput
-                          value={activeGroupRow?.taxbleEntityName || ""}
-                          readOnly
-                          className="bg-gray-50"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </FormSection>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 p-2 gap-2">
-                <FormSection title="Period Information">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-2">
-                    <div>
-                      <FormInput
-                        label="Fiscal Year Start"
-                        value={activeGroupRow?.fyCdFr || ""}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            activeGroupRow?.tempId || activeGroupRow?.orgId,
-                            "fyCdFr",
-                            e.target.value,
-                          )
-                        }
-                      />
-                      <FormInput
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] p-2 gap-3 items-start">
+                <div className="flex flex-col gap-3">
+                  <FormSection title="Period Information">
+                    <div className="flex flex-col gap-2 px-2 py-1">
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] whitespace-nowrap w-[75px]">
+                          Start Month
+                        </label>
+                        <div className="">
+                          <FormInput
+                            type="month"
+                            // value={activeGroupRow?.fyCdFr || ""}
+                            value={
+                              activeGroupRow?.fyCdFr && activeGroupRow?.pdNoFr
+                                ? `${activeGroupRow.fyCdFr}-${String(activeGroupRow.pdNoFr).padStart(2, "0")}`
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const [year, month] = e.target.value.split("-");
+                              handleFieldChange(
+                                activeGroupRow?.tempId || activeGroupRow?.orgId,
+                                "fyCdFr",
+                                year,
+                              );
+                              handleFieldChange(
+                                activeGroupRow?.tempId || activeGroupRow?.orgId,
+                                "pdNoFr",
+                                month,
+                              );
+                            }}
+                          />
+                        </div>
+                        {/* <FormInput
                         label="Period Start"
                         type="number"
                         value={activeGroupRow?.pdNoFr || ""}
@@ -1945,21 +1849,35 @@ const OrgMaster = ({ canEdit }) => {
                             e.target.value,
                           )
                         }
-                      />
-                    </div>
-                    <div>
-                      <FormInput
-                        label="Fiscal Year End"
-                        value={activeGroupRow?.fyCdTo || ""}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            activeGroupRow?.tempId || activeGroupRow?.orgId,
-                            "fyCdTo",
-                            e.target.value,
-                          )
-                        }
-                      />
-                      <FormInput
+                      /> */}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] whitespace-nowrap w-[75px]">
+                          End Month
+                        </label>
+                        <FormInput
+                          type="month"
+                          value={
+                            activeGroupRow?.fyCdTo && activeGroupRow?.pdNoTo
+                              ? `${activeGroupRow.fyCdTo}-${String(activeGroupRow.pdNoTo).padStart(2, "0")}`
+                              : ""
+                          }
+                          onChange={(e) => {
+                            const [year, month] = e.target.value.split("-");
+                            handleFieldChange(
+                              activeGroupRow?.tempId || activeGroupRow?.orgId,
+                              "fyCdTo",
+                              year,
+                            );
+                            handleFieldChange(
+                              activeGroupRow?.tempId || activeGroupRow?.orgId,
+                              "pdNoTo",
+                              month,
+                            );
+                          }}
+                        />
+                        {/* <FormInput
                         label="Period End"
                         type="number"
                         value={activeGroupRow?.pdNoTo || ""}
@@ -1969,14 +1887,158 @@ const OrgMaster = ({ canEdit }) => {
                             "pdNoTo",
                             e.target.value,
                           )
+                        } */}
+                        {/* /> */}
+                      </div>
+                    </div>
+                  </FormSection>
+
+                  <FormSection title="Export Options">
+                    <div className="px-2 py-1">
+                      <FormInput
+                        label="Time Collection"
+                        type="checkbox"
+                        checked={activeGroupRow?.tcOrgFl === "Y"}
+                        onChange={(e) =>
+                          handleFieldChange(
+                            activeGroupRow?.tempId || activeGroupRow?.orgId,
+                            "tcOrgFl",
+                            e.target.checked,
+                          )
                         }
                       />
                     </div>
-                  </div>
-                </FormSection>
+                  </FormSection>
+                </div>
 
-                <FormSection title="Export Options">
-                  <div className="grid grid-cols-1 lg-grid-cols-2 gap-3 mb-2">
+                <div className="h-full">
+                  <FormSection title="Top Level Organization">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-2 py-5">
+                      <div>
+                        <FormInput
+                          label="Abbreviation"
+                          value={activeGroupRow?.orgAbbrvCd || ""}
+                          onChange={(e) =>
+                            handleFieldChange(
+                              activeGroupRow?.tempId || activeGroupRow?.orgId,
+                              "orgAbbrvCd",
+                              e.target.value,
+                            )
+                          }
+                        />
+                        <FormInput
+                          label="No of Levels"
+                          type="number"
+                          value={activeGroupRow?.lvlNo || ""}
+                          readOnly
+                          onChange={(e) =>
+                            handleFieldChange(
+                              activeGroupRow?.tempId || activeGroupRow?.orgId,
+                              "lvlNo",
+                              e.target.value,
+                            )
+                          }
+                        />
+
+                        <div className="flex items-end gap-2">
+                          {/* <div className='w-40'> */}
+                          <FormInput
+                            label="Company ID"
+                            value={activeGroupRow?.companyId || "1"}
+                            readOnly
+                          />
+                          {/* </div> */}
+
+                          <div className="w-40">
+                            <FormInput value={"Revolve"} readOnly />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <FormInput
+                          label="Active"
+                          type="checkbox"
+                          checked={activeGroupRow?.activeFl === "Y"}
+                          onChange={(e) =>
+                            handleFieldChange(
+                              activeGroupRow?.tempId || activeGroupRow?.orgId,
+                              "activeFl",
+                              e.target.checked,
+                            )
+                          }
+                        />
+                        <div className="w-64">
+                          <FormInput
+                            label="Balance Sheet Level"
+                            type="number"
+                            required
+                            value={activeGroupRow?.balanceSheet || ""}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                activeGroupRow?.tempId || activeGroupRow?.orgId,
+                                "balanceSheet",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-end gap-2 px-1">
+                          <FormSearchSelect
+                            label="Taxable Entity ID *"
+                            value={activeGroupRow?.taxbleEntityId}
+                            searchTerm={searchTermTaxable}
+                            setSearchTerm={setSearchTermTaxable}
+                            options={taxableEntity.filter(
+                              (t) =>
+                                String(t.taxableId)
+                                  .toLowerCase()
+                                  .includes(searchTermTaxable.toLowerCase()) ||
+                                t.taxableName
+                                  .toLowerCase()
+                                  .includes(searchTermTaxable.toLowerCase()),
+                            )}
+                            displayKey="taxableId"
+                            secondaryKey="taxableName"
+                            onSelect={(selectedOpt) => {
+                              // 1. Capture the stable ID for the current row
+                              const id =
+                                activeGroupRow?.tempId || activeGroupRow?.orgId;
+
+                              // 2. Update the ID field (number/string)
+                              handleFieldChange(
+                                id,
+                                "taxbleEntityId",
+                                selectedOpt.taxableId,
+                              );
+
+                              // 3. Update the Name field (string)
+                              handleFieldChange(
+                                id,
+                                "taxbleEntityName",
+                                selectedOpt.taxableName,
+                              );
+                            }}
+                          />
+
+                          {/* Read-only field to show the name associated with the ID */}
+                          {/* <div className="w-40"> */}
+                          <FormInput
+                            value={activeGroupRow?.taxbleEntityName || ""}
+                            readOnly
+                            className="bg-gray-50 mt-1 border"
+                          />
+                          {/* </div> */}
+                        </div>
+                      </div>
+                    </div>
+                  </FormSection>
+                </div>
+              </div>
+
+              {/* <FormSection title="Export Options">
+                  <div className="classname=p-2">
                     <FormInput
                       label="Time Collection"
                       type="checkbox"
@@ -1990,29 +2052,28 @@ const OrgMaster = ({ canEdit }) => {
                       }
                     />
                   </div>
-                </FormSection>
-              </div>
+                </FormSection> */}
 
               <div className="p-2">
                 <FormSection title="Intercompany Receivable Accounts">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-2 gap-y-2 mb-2 items-center">
+                  <div className="grid grid-cols-1 lg:grid-cols-[180px_repeat(3,minmax(0,1fr))] gap-x-2 gap-y-2 mb-2 items-center">
                     {/* Column Headers - Desktop Only */}
-                    <div className="hidden lg:block lg:col-span-3"></div>
-                    <div className="hidden lg:block lg:col-span-3 text-center text-[10px]">
+                    <div className="hidden lg:block"></div>
+                    <div className="hidden lg:block text-center text-[10px]">
                       Account
                     </div>
-                    <div className="hidden lg:block lg:col-span-3 text-center text-[10px]">
+                    <div className="hidden lg:block text-center text-[10px]">
                       Ref No 1
                     </div>
-                    <div className="hidden lg:block lg:col-span-3 text-center text-[10px]">
+                    <div className="hidden lg:block text-center text-[10px]">
                       Ref No 2
                     </div>
 
                     {/* Due From Row */}
-                    <div className="lg:col-span-3 flex items-center h-full pt-1">
+                    <div className="flex items-center h-full pt-1">
                       <span className="text-[10px]">Due From</span>
                     </div>
-                    <div className="lg:col-span-3">
+                    <div>
                       <FormSearchSelect
                         value={activeGroupRow?.icrAcctIdFr}
                         searchTerm={searchTermTaxable}
@@ -2042,7 +2103,7 @@ const OrgMaster = ({ canEdit }) => {
                         }}
                       />
                     </div>
-                    <div className="lg:col-span-3">
+                    <div>
                       <FormSearchSelect
                         value={activeGroupRow?.icrRef1IdFr}
                         searchTerm={searchTermTaxable}
@@ -2072,7 +2133,7 @@ const OrgMaster = ({ canEdit }) => {
                         }}
                       />
                     </div>
-                    <div className="lg:col-span-3">
+                    <div>
                       <FormSearchSelect
                         value={activeGroupRow?.icrRef2IdFr}
                         searchTerm={searchTermTaxable}
@@ -2104,12 +2165,12 @@ const OrgMaster = ({ canEdit }) => {
                     </div>
 
                     {/* Due To Row */}
-                    <div className="lg:col-span-3 flex items-center h-full pt-1">
+                    <div className="flex items-center h-full pt-1">
                       <span className="text-[10px] font-semibold text-gray-700">
                         Due To
                       </span>
                     </div>
-                    <div className="lg:col-span-3">
+                    <div>
                       <FormSearchSelect
                         value={activeGroupRow?.icrAcctIdTo}
                         searchTerm={searchTermTaxable}
@@ -2139,7 +2200,7 @@ const OrgMaster = ({ canEdit }) => {
                         }}
                       />
                     </div>
-                    <div className="lg:col-span-3">
+                    <div>
                       <FormSearchSelect
                         value={activeGroupRow?.icrRef1IdTo}
                         searchTerm={searchTermTaxable}
@@ -2169,7 +2230,7 @@ const OrgMaster = ({ canEdit }) => {
                         }}
                       />
                     </div>
-                    <div className="lg:col-span-3">
+                    <div>
                       <FormSearchSelect
                         value={activeGroupRow?.icrRef2IdTo}
                         searchTerm={searchTermTaxable}
@@ -2203,6 +2264,7 @@ const OrgMaster = ({ canEdit }) => {
                 </FormSection>
               </div>
             </FormSection>
+
             <ActionDetailButton
               label="Link Account"
               onClick={() => setAcctOrgLink((prev) => !prev)}

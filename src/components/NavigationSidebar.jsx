@@ -864,7 +864,7 @@
 //         {/* <RailIcon icon={<Home size={20} />} label="Home" onClick={() => navigate('/')} />
 //         <RailIcon icon={<Star size={20} />} label="Favorites" />
 //         <RailIcon icon={<Clock size={20} />} label="Recent" />
-        
+
 //         <div className="w-8 h-[1px] bg-gray-200 my-2" /> */}
 
 //         {/* Dynamic Modules */}
@@ -13632,6 +13632,7 @@
 
 // export default NavigationSidebar;
 
+// previous with correct css without recent tabs
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -13652,6 +13653,7 @@ import {
   HomeIcon,
   Calculator,
 } from "lucide-react";
+import { appendRecentPage, loadRecentPages } from "../utils/recentPages";
 
 const NavigationSidebar = ({ canView }) => {
   const { pathname } = useLocation();
@@ -13662,6 +13664,7 @@ const NavigationSidebar = ({ canView }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRailHovered, setIsRailHovered] = useState(false);
   const [openSubMenus, setOpenSubMenus] = useState({});
+  const [recentPages, setRecentPages] = useState([]);
 
   const HIDDEN_FEATURES =
     import.meta.env.VITE_HIDE?.replace(/["\s]/g, "").split(",") || [];
@@ -13673,6 +13676,44 @@ const NavigationSidebar = ({ canView }) => {
       [key]: !prev[key],
     }));
   };
+
+  const getRouteLabel = (path) => {
+    const allItems = [...modules, ...Admin].flatMap((section) => section.items);
+    const findLabel = (items) => {
+      for (const item of items) {
+        if (item.path === path) return item.label;
+        if (item.subItems) {
+          const nested = findLabel(item.subItems);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    };
+
+    return (
+      findLabel(allItems) ||
+      path
+        .replace(/^\/dashboard\/?/, "")
+        .split(/[\/]/)
+        .filter(Boolean)
+        .join(" / ")
+        .replace(/\b\w/g, (c) => c.toUpperCase()) ||
+      "Dashboard"
+    );
+  };
+
+  useEffect(() => {
+    setRecentPages(loadRecentPages());
+  }, []);
+
+  useEffect(() => {
+    if (!pathname.startsWith("/dashboard")) return;
+    const pages = appendRecentPage({
+      path: pathname,
+      label: getRouteLabel(pathname),
+    });
+    setRecentPages(pages);
+  }, [pathname]);
 
   // Define the structure based on your current logic
   const modules = [
@@ -14528,7 +14569,7 @@ const NavigationSidebar = ({ canView }) => {
         {/* <RailIcon icon={<Home size={20} />} label="Home" onClick={() => navigate('/')} />
         <RailIcon icon={<Star size={20} />} label="Favorites" />
         <RailIcon icon={<Clock size={20} />} label="Recent" />
-        
+
         <div className="w-8 h-[1px] bg-gray-200 my-2" /> */}
 
         {/* Dynamic Modules */}
@@ -14565,6 +14606,19 @@ const NavigationSidebar = ({ canView }) => {
                 )
               }
             />
+
+            <RailIcon
+              icon={<Clock size={20} />}
+              label="Recent"
+              isHovered={isRailHovered}
+              active={activeModule === "recent-pages"}
+              onClick={() =>
+                setActiveModule(
+                  activeModule === "recent-pages" ? null : "recent-pages",
+                )
+              }
+            />
+
             {modules.map((mod) => (
               <RailIcon
                 key={mod.id}
@@ -14603,7 +14657,6 @@ const NavigationSidebar = ({ canView }) => {
             className="fixed inset-0 bg-transparent z-[-1]"
             onClick={() => setActiveModule(null)}
           />
-
           <div className="relative w-64 bg-white shadow-2xl border border-gray-200 rounded-xl flex flex-col animate-in slide-in-from-left-2 duration-200 h-full overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -14641,138 +14694,172 @@ const NavigationSidebar = ({ canView }) => {
 
               {/* Scrollable Navigation Area */}
               <nav className="space-y-4 overflow-y-auto pr-1 custom-scrollbar">
-                {(activeModule === "global-search"
-                  ? [...modules, ...Admin]
-                  : [[...modules, ...Admin].find((m) => m.id === activeModule)]
-                )
-                  .filter(Boolean)
-                  .map((section) => {
-                    const filteredItems = section.items.filter(
-                      (item) =>
-                        (!item.permission || canView(item.permission)) &&
-                        !isHidden(item.permission) &&
-                        item.label.toLowerCase().includes(searchTerm),
-                    );
-
-                    if (filteredItems.length === 0) return null;
-
-                    return (
-                      <div key={section.id} className="space-y-1">
-                        {activeModule === "global-search" && (
-                          <div className="px-3 py-1 text-[10px] font-semibold text-[#104e64] opacity-70 tracking-tighter">
-                            {section.label}
-                          </div>
-                        )}
-
-                        {filteredItems.map((item) => {
-                          const hasSubItems = item.subItems?.length > 0;
-                          const itemKey = item.path || item.label;
-                          const isSubOpen = openSubMenus[itemKey];
-
-                          return (
-                            <div key={itemKey} className="flex flex-col">
-                              {/* LEVEL 1 */}
-                              <button
-                                onClick={() =>
-                                  hasSubItems
-                                    ? toggleSubMenu(itemKey)
-                                    : handleLinkClick(item.path)
-                                }
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
-                                  pathname === item.path
-                                    ? "bg-[#104e64] text-white shadow-md"
-                                    : "text-gray-600 hover:bg-gray-100 hover:text-[#104e64]"
-                                }`}
-                              >
-                                <span className="truncate">{item.label}</span>
-
-                                {hasSubItems && (
-                                  <ChevronRight
-                                    size={14}
-                                    className={`transition-transform ${
-                                      isSubOpen ? "rotate-90" : ""
-                                    }`}
-                                  />
-                                )}
-                              </button>
-
-                              {/* LEVEL 2 */}
-                              {hasSubItems && isSubOpen && (
-                                <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-1">
-                                  {item.subItems.map((sub) => {
-                                    const hasNested = sub.subItems?.length > 0;
-                                    const subKey = sub.path || sub.label;
-                                    const isNestedOpen = openSubMenus[subKey];
-
-                                    // ✅ NORMAL SUB ITEM
-                                    if (!hasNested) {
-                                      return (
-                                        <button
-                                          key={subKey}
-                                          onClick={() =>
-                                            handleLinkClick(sub.path)
-                                          }
-                                          className={`w-full text-left px-4 py-1.5 rounded-lg text-[11px] transition-all ${
-                                            pathname === sub.path
-                                              ? "bg-[#104e64] text-white"
-                                              : "text-gray-500 hover:text-[#104e64] hover:bg-gray-50"
-                                          }`}
-                                        >
-                                          {sub.label}
-                                        </button>
-                                      );
-                                    }
-
-                                    // ✅ LEVEL 3 DROPDOWN
-                                    return (
-                                      <div
-                                        key={subKey}
-                                        className="flex flex-col"
-                                      >
-                                        <button
-                                          onClick={() => toggleSubMenu(subKey)}
-                                          className="w-full flex items-center justify-between px-4 py-1.5 text-[11px] text-gray-500 hover:text-[#104e64] hover:bg-gray-50 rounded-lg"
-                                        >
-                                          <span>{sub.label}</span>
-
-                                          <ChevronRight
-                                            size={12}
-                                            className={`transition-transform ${
-                                              isNestedOpen ? "rotate-90" : ""
-                                            }`}
-                                          />
-                                        </button>
-
-                                        {isNestedOpen && (
-                                          <div className="ml-4 mt-1 space-y-1">
-                                            {sub.subItems.map((deep) => (
-                                              <button
-                                                key={deep.path}
-                                                onClick={() =>
-                                                  handleLinkClick(deep.path)
-                                                }
-                                                className={`w-full text-left px-4 py-1 rounded-md text-[10px] ${
-                                                  pathname === deep.path
-                                                    ? "bg-[#104e64] text-white"
-                                                    : "text-gray-400 hover:text-[#104e64] hover:bg-gray-50"
-                                                }`}
-                                              >
-                                                {deep.label}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                {activeModule === "recent-pages" ? (
+                  <div className="space-y-2">
+                    <div className="px-3 py-1 text-[10px] font-semibold text-[#104e64] opacity-70 tracking-wider">
+                      Recent
+                    </div>
+                    {recentPages.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500">
+                        Visit a page to add it here.
                       </div>
-                    );
-                  })}
+                    ) : (
+                      recentPages.map((page) => (
+                        <button
+                          key={page.path}
+                          onClick={() => handleLinkClick(page.path)}
+                          className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-all ${
+                            pathname === page.path
+                              ? "bg-[#104e64] text-white"
+                              : "text-gray-600 hover:bg-gray-100 hover:text-[#104e64]"
+                          }`}
+                        >
+                          {page.label}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  (activeModule === "global-search"
+                    ? [...modules, ...Admin]
+                    : [
+                        [...modules, ...Admin].find(
+                          (m) => m.id === activeModule,
+                        ),
+                      ]
+                  )
+                    .filter(Boolean)
+                    .map((section) => {
+                      const filteredItems = section.items.filter(
+                        (item) =>
+                          (!item.permission || canView(item.permission)) &&
+                          !isHidden(item.permission) &&
+                          item.label.toLowerCase().includes(searchTerm),
+                      );
+
+                      if (filteredItems.length === 0) return null;
+
+                      return (
+                        <div key={section.id} className="space-y-1">
+                          {activeModule === "global-search" && (
+                            <div className="px-3 py-1 text-[10px] font-semibold text-[#104e64] opacity-70 tracking-tighter">
+                              {section.label}
+                            </div>
+                          )}
+
+                          {filteredItems.map((item) => {
+                            const hasSubItems = item.subItems?.length > 0;
+                            const itemKey = item.path || item.label;
+                            const isSubOpen = openSubMenus[itemKey];
+
+                            return (
+                              <div key={itemKey} className="flex flex-col">
+                                {/* LEVEL 1 */}
+                                <button
+                                  onClick={() =>
+                                    hasSubItems
+                                      ? toggleSubMenu(itemKey)
+                                      : handleLinkClick(item.path)
+                                  }
+                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+                                    pathname === item.path
+                                      ? "bg-[#104e64] text-white shadow-md"
+                                      : "text-gray-600 hover:bg-gray-100 hover:text-[#104e64]"
+                                  }`}
+                                >
+                                  <span className="truncate">{item.label}</span>
+
+                                  {hasSubItems && (
+                                    <ChevronRight
+                                      size={14}
+                                      className={`transition-transform ${
+                                        isSubOpen ? "rotate-90" : ""
+                                      }`}
+                                    />
+                                  )}
+                                </button>
+
+                                {/* LEVEL 2 */}
+                                {hasSubItems && isSubOpen && (
+                                  <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-1">
+                                    {item.subItems.map((sub) => {
+                                      const hasNested =
+                                        sub.subItems?.length > 0;
+                                      const subKey = sub.path || sub.label;
+                                      const isNestedOpen = openSubMenus[subKey];
+
+                                      //                                     // ✅ NORMAL SUB ITEM
+                                      if (!hasNested) {
+                                        return (
+                                          <button
+                                            key={subKey}
+                                            onClick={() =>
+                                              handleLinkClick(sub.path)
+                                            }
+                                            className={`w-full text-left px-4 py-1.5 rounded-lg text-[11px] transition-all ${
+                                              pathname === sub.path
+                                                ? "bg-[#104e64] text-white"
+                                                : "text-gray-500 hover:text-[#104e64] hover:bg-gray-50"
+                                            }`}
+                                          >
+                                            {sub.label}
+                                          </button>
+                                        );
+                                      }
+
+                                      //   ✅ LEVEL 3 DROPDOWN
+                                      return (
+                                        <div
+                                          key={subKey}
+                                          className="flex flex-col"
+                                        >
+                                          <button
+                                            onClick={() =>
+                                              toggleSubMenu(subKey)
+                                            }
+                                            className="w-full flex items-center justify-between px-4 py-1.5 text-[11px] text-gray-500 hover:text-[#104e64] hover:bg-gray-50 rounded-lg"
+                                          >
+                                            <span>{sub.label}</span>
+
+                                            <ChevronRight
+                                              size={12}
+                                              className={`transition-transform ${
+                                                isNestedOpen ? "rotate-90" : ""
+                                              }`}
+                                            />
+                                          </button>
+
+                                          {isNestedOpen && (
+                                            <div className="ml-4 mt-1 space-y-1">
+                                              {sub.subItems.map((deep) => (
+                                                <button
+                                                  key={deep.path}
+                                                  onClick={() =>
+                                                    handleLinkClick(deep.path)
+                                                  }
+                                                  className={`w-full text-left px-4 py-1 rounded-md text-[10px] ${
+                                                    pathname === deep.path
+                                                      ? "bg-[#104e64] text-white"
+                                                      : "text-gray-400 hover:text-[#104e64] hover:bg-gray-50"
+                                                  }`}
+                                                >
+                                                  {deep.label}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })
+                )}
               </nav>
             </div>
           </div>
@@ -14788,7 +14875,7 @@ const RailIcon = ({ icon, label, onClick, active, isHovered }) => (
     <button
       onClick={onClick}
       className={`w-full flex items-center cursor-pointer p-2 rounded-lg transition-all duration-300 group relative ${
-        active ? "bg-[#104e64] text-white" : "text-black hover:bg-gray-100" // Use text-black here for the default state
+        active ? "bg-[#104e64] text-white" : "text-black hover:bg-gray-100"
       }`}
     >
       {/* Icon Containe: Removed background/text logic to prevent flickering */}
