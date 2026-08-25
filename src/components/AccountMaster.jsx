@@ -1409,20 +1409,22 @@ const AccountMaster = ({ canEdit }) => {
         {isFormView ? (
           <div className="space-y-3 p-1 py-2">
             {/* Primary Account Identifiers */}
+            {/* Primary Account Identifiers */}
             <FormSection>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-2">
-                <div className="lg:col-span-4">
-                  <FormInput
-                    label="Account"
-                    required
-                    // If new, show displayId; if existing, show acctId.
-                    // Falling back to empty string to keep the input controlled.
+              <div className="flex items-center">
+                {/* Account */}
+                <div className="flex items-center mr-12">
+                  <label className="w-[70px] shrink-0 text-[10px] text-black">
+                    Account *
+                  </label>
+
+                  <input
+                    type="text"
                     value={
                       selectedAccount?.isNew
                         ? selectedAccount?.displayId || ""
                         : selectedAccount?.acctId || ""
                     }
-                    // Matches your table logic: only editable if the row is new
                     readOnly={!selectedAccount?.isNew}
                     onChange={(e) =>
                       handleLocalChange(
@@ -1431,12 +1433,18 @@ const AccountMaster = ({ canEdit }) => {
                         e.target.value,
                       )
                     }
+                    className="w-[150px] border border-gray-300 rounded p-0.5 text-[10px] outline-none bg-white focus:border-[#17414d]"
                   />
                 </div>
-                <div className="lg:col-span-6">
-                  <FormInput
-                    label="Name"
-                    required
+
+                {/* Name */}
+                <div className="flex items-center mr-12">
+                  <label className="w-[50px] shrink-0 text-[10px] text-black">
+                    Name *
+                  </label>
+
+                  <input
+                    type="text"
                     value={selectedAccount?.acctName || ""}
                     onChange={(e) =>
                       handleLocalChange(
@@ -1445,14 +1453,21 @@ const AccountMaster = ({ canEdit }) => {
                         e.target.value,
                       )
                     }
+                    className="w-[150px] border border-gray-300 rounded p-0.5 text-[10px] outline-none bg-white focus:border-[#17414d]"
                   />
                 </div>
-                <div className="lg:col-span-2">
-                  <FormInput
-                    label="Level"
+
+                {/* Level */}
+                <div className="flex items-center">
+                  <label className="w-[45px] shrink-0 text-[10px] text-black">
+                    Level
+                  </label>
+
+                  <input
                     type="number"
                     value={selectedAccount?.lvlNo || ""}
                     readOnly
+                    className="w-[120px] border border-gray-300 rounded p-0.5 text-[10px] outline-none bg-gray-100 text-gray-400"
                   />
                 </div>
               </div>
@@ -1460,11 +1475,11 @@ const AccountMaster = ({ canEdit }) => {
 
             <FormSection title="Account Details">
               <div className="p-2">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2">
+                <div className="grid grid-cols-3 gap-x-8 space-y-2">
                   {/* Left Column: Status & Requirements */}
                   <div className="space-y-2">
                     <FormSection title="Basic Information">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-2 space-y-4 -mt-1">
                         <FormInput
                           label="Detail"
                           type="checkbox"
@@ -1512,7 +1527,7 @@ const AccountMaster = ({ canEdit }) => {
                   {/* Right Column: Account Classification */}
                   <div className="space-y-2">
                     <FormSection title="Classification">
-                      <div className="space-y-3">
+                      <div className="space-y-4 ">
                         <FormSearchSelect
                           label="Account Type"
                           value={selectedAccount?.sAcctTypeCd}
@@ -1540,6 +1555,7 @@ const AccountMaster = ({ canEdit }) => {
 
                         <FormInput
                           label="Account Entry Group"
+                          // labelWidth="150px"
                           value={selectedAccount?.acctEntrGrpCd || "ALL"}
                           onChange={(e) =>
                             handleLocalChange(
@@ -1552,64 +1568,66 @@ const AccountMaster = ({ canEdit }) => {
                       </div>
                     </FormSection>
                   </div>
-                </div>
 
-                {/* Fiscal Year Restrictions Section */}
-                <div className="mt-4">
-                  <FormSection title="Fiscal Year/Period Restrictions (Leave blank for no restrictions)">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
-                      <div className="space-y-2">
-                        <FormInput
-                          label="FY Starting"
-                          value={selectedAccount?.fyCdFr || ""}
-                          onChange={(e) =>
-                            handleLocalChange(
-                              selectedAccount?.id || selectedAccount?.acctId,
-                              "fyCdFr",
-                              e.target.value,
-                            )
-                          }
-                        />
-                        <FormInput
-                          label="Pd Starting"
-                          type="number"
-                          value={selectedAccount?.pdNoFr || ""}
-                          onChange={(e) =>
-                            handleLocalChange(
-                              selectedAccount?.id || selectedAccount?.acctId,
-                              "pdNoFr",
-                              e.target.value,
-                            )
-                          }
-                        />
+                  {/* Fiscal Year Restrictions Section */}
+                  <div>
+                    <FormSection title="Fiscal Year/Period Restrictions (Leave blank for no restrictions)">
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <FormInput
+                            label="Start Month"
+                            type="month"
+                            value={
+                              selectedAccount?.fyCdFr && selectedAccount?.pdNoFr
+                                ? `${selectedAccount.fyCdFr}-${String(selectedAccount.pdNoFr).padStart(2, "0")}`
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const [year, month] = e.target.value.split("-");
+
+                              handleLocalChange(
+                                selectedAccount?.id || selectedAccount?.acctId,
+                                "fyCdFr",
+                                year,
+                              );
+
+                              handleLocalChange(
+                                selectedAccount?.id || selectedAccount?.acctId,
+                                "pdNoFr",
+                                month,
+                              );
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <FormInput
+                            label="End Month"
+                            type="month"
+                            value={
+                              selectedAccount?.fyCdTo && selectedAccount?.pdNoTo
+                                ? `${selectedAccount.fyCdTo}-${String(selectedAccount.pdNoTo).padStart(2, "0")}`
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const [year, month] = e.target.value.split("-");
+
+                              handleLocalChange(
+                                selectedAccount?.id || selectedAccount?.acctId,
+                                "fyCdTo",
+                                year,
+                              );
+
+                              handleLocalChange(
+                                selectedAccount?.id || selectedAccount?.acctId,
+                                "pdNoTo",
+                                month,
+                              );
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <FormInput
-                          label="FY Ending"
-                          value={selectedAccount?.fyCdTo || ""}
-                          onChange={(e) =>
-                            handleLocalChange(
-                              selectedAccount?.id || selectedAccount?.acctId,
-                              "fyCdTo",
-                              e.target.value,
-                            )
-                          }
-                        />
-                        <FormInput
-                          label="Pd Ending"
-                          type="number"
-                          value={selectedAccount?.pdNoTo || ""}
-                          onChange={(e) =>
-                            handleLocalChange(
-                              selectedAccount?.id || selectedAccount?.acctId,
-                              "pdNoTo",
-                              e.target.value,
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
-                  </FormSection>
+                    </FormSection>
+                  </div>
                 </div>
               </div>
             </FormSection>
@@ -1648,9 +1666,6 @@ const AccountMaster = ({ canEdit }) => {
                         </th>
                       );
                     })}
-                    {/* <th className="th-thead text-xs font-bold text-gray-600 text-center">
-                      Action
-                    </th> */}
                   </tr>
                 </thead>
                 <tbody className="tbody">
