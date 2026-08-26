@@ -1501,7 +1501,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Vendor Employees"
                 icon={User}
-                isActive={activeModal.includes("VendorEmployee")}
+                // isActive={activeModal.includes("VendorEmployee")}
+                isActive={activeModal[0] === "VendorEmployee"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "VendorEmployee",
@@ -1512,7 +1513,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Vendor Classification"
                 icon={Layers}
-                isActive={activeModal.includes("Vendor Classification")}
+                // isActive={activeModal.includes("Vendor Classification")}
+                isActive={activeModal[0] === "Vendor Classification"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "Vendor Classification",
@@ -1523,7 +1525,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Vendor Certifications"
                 icon={ShieldCheck}
-                isActive={activeModal.includes("Vendor Certifications")}
+                // isActive={activeModal.includes("Vendor Certifications")}
+                isActive={activeModal[0] === "Vendor Certifications"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "Vendor Certifications",
@@ -1534,7 +1537,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Subcontractor Info"
                 icon={Briefcase}
-                isActive={activeModal.includes("Subcontractor Info")}
+                // isActive={activeModal.includes("Subcontractor Info")}
+                isActive={activeModal[0] === "Subcontractor Info"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "Subcontractor Info",
@@ -1545,7 +1549,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Credit Card Info"
                 icon={CreditCard}
-                isActive={activeModal.includes("Credit Card Info")}
+                // isActive={activeModal.includes("Credit Card Info")}
+                isActive={activeModal[0] === "Credit Card Info"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "Credit Card Info",
@@ -1556,7 +1561,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Addresses"
                 icon={MapPin}
-                isActive={activeModal.includes("Addresses")}
+                // isActive={activeModal.includes("Addresses")}
+                isActive={activeModal[0] === "Addresses"}
                 onClick={() =>
                   setActiveModal((prevArray) => ["Addresses", ...prevArray])
                 }
@@ -1564,7 +1570,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="Default Expense Accounts"
                 icon={FileSpreadsheet}
-                isActive={activeModal.includes("Default Expense Accounts")}
+                // isActive={activeModal.includes("Default Expense Accounts")}
+                isActive={activeModal[0] === "Default Expense Accounts"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "Default Expense Accounts",
@@ -1575,7 +1582,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="VAT Info"
                 icon={Percent}
-                isActive={activeModal.includes("VAT Info")}
+                // isActive={activeModal.includes("VAT Info")}
+                isActive={activeModal[0] === "VAT Info"}
                 onClick={() =>
                   setActiveModal((prevArray) => ["VAT Info", ...prevArray])
                 }
@@ -1583,7 +1591,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="CIS Info"
                 icon={ClipboardList}
-                isActive={activeModal.includes("CIS Info")}
+                // isActive={activeModal.includes("CIS Info")}
+                isActive={activeModal[0] === "CIS Info"}
                 onClick={() =>
                   setActiveModal((prevArray) => ["CIS Info", ...prevArray])
                 }
@@ -1591,7 +1600,8 @@ const ManageVendor = () => {
               <ActionDetailButton
                 label="User-Defined Info"
                 icon={Globe}
-                isActive={activeModal.includes("User-Defined Info")}
+                // isActive={activeModal.includes("User-Defined Info")}
+                isActive={activeModal[0] === "User-Defined Info"}
                 onClick={() =>
                   setActiveModal((prevArray) => [
                     "User-Defined Info",
@@ -1599,12 +1609,12 @@ const ManageVendor = () => {
                   ])
                 }
               />
-              <ActionDetailButton
+              {/* <ActionDetailButton
                 label=""
                 icon={MoreHorizontal}
                 isActive={activeModal.includes("VendorEmployee")}
                 className="w-10"
-              />
+              /> */}
             </div>
           </div>
         ) : (
@@ -2260,7 +2270,8 @@ const ManageVendor = () => {
         )}
       </MainContainer>
       {/* Dynamic Sub-Form Modal */}
-      {activeModal.includes("VendorEmployee") && (
+      {/* {activeModal.includes("VendorEmployee") && ( */}
+      {activeModal[0] === "VendorEmployee" && (
         <VendorEmployeeDetail
           // toolbarActions={toolbarActions}
           formData={formData}
@@ -2273,7 +2284,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("Vendor Classification") && (
+      {/* {activeModal.includes("Vendor Classification") && ( */}
+      {activeModal[0] === "Vendor Classification" && (
         <VendorClassification
           // toolbarActions={toolbarActions}
           toolbarActions={{
@@ -2294,7 +2306,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("Addresses") && (
+      {/* {activeModal.includes("Addresses") && ( */}
+      {activeModal[0] === "Addresses" && (
         <Addresses
           // toolbarActions={toolbarActions}
           toolbarActions={{
@@ -2315,7 +2328,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("VAT Info") && (
+      {/* {activeModal.includes("VAT Info") && ( */}
+      {activeModal[0] === "VAT Info" && (
         <VATInfo
           // toolbarActions={toolbarActions}
           toolbarActions={{
@@ -2334,7 +2348,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("CIS Info") && (
+      {/* {activeModal.includes("CIS Info") && ( */}
+      {activeModal[0] === "CIS Info" && (
         <CISInfo
           // toolbarActions={toolbarActions}
           toolbarActions={{
@@ -2353,7 +2368,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("Credit Card Info") && (
+      {/* {activeModal.includes("Credit Card Info") && ( */}
+      {activeModal[0] === "Credit Card Info" && (
         <CreditCardInfo
           toolbarActions={{
             onAdd: () => {},
@@ -2374,7 +2390,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("Vendor Certifications") && (
+      {/* {activeModal.includes("Vendor Certifications") && ( */}
+      {activeModal[0] === "Vendor Certifications" && (
         <VendorCertifications
           toolbarActions={{
             onAdd: () => {},
@@ -2395,7 +2412,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("Subcontractor Info") && (
+      {/* {activeModal.includes("Subcontractor Info") && ( */}
+      {activeModal[0] === "Subcontractor Info" && (
         <SubContractorInfo
           // toolbarActions={toolbarActions}
           toolbarActions={{
@@ -2416,7 +2434,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("Default Expense Accounts") && (
+      {/* {activeModal.includes("Default Expense Accounts") && ( */}
+      {activeModal[0] === "Default Expense Accounts" && (
         <DefaultExpenseAccounts
           // toolbarActions={toolbarActions}
           toolbarActions={{
@@ -2437,7 +2456,8 @@ const ManageVendor = () => {
           }
         />
       )}
-      {activeModal.includes("User-Defined Info") && (
+      {/* {activeModal.includes("User-Defined Info") && ( */}
+      {activeModal[0] === "User-Defined Info" && (
         <UserDefinedInfo
           // toolbarActions={toolbarActions}
           toolbarActions={{

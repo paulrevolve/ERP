@@ -869,7 +869,7 @@ export const UserDefinedInfo = ({
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
       {/* Top Section: Address List */}
-      <MainContainer title="USer-Defined Info" handleClose={onClose}>
+      <MainContainer title="User-Defined Info" handleClose={onClose}>
         <Toolbar
           isFormView={isFormView}
           isDirty={isDirty}
