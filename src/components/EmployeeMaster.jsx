@@ -1,5 +1,5 @@
 import api from "../utils/api";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { backendUrl } from "./config";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Select from "react-select";
 import EmployeeMasterForm from "./EmployeeMasterForm";
+import { MainContainer, Toolbar } from "../helper/container";
 
 const EmployeeMaster = ({ canEdit }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -25,6 +26,12 @@ const EmployeeMaster = ({ canEdit }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [isFormView, setIsFormView] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isNewForm, setIsNewForm] = useState(false);
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  const [formInstanceKey, setFormInstanceKey] = useState(0);
+  const employeeFormRef = useRef(null);
   const [editPopup, setEditPopup] = useState(false);
   const [showNewPopup, setShowNewPopup] = useState(false);
 
@@ -411,6 +418,133 @@ const EmployeeMaster = ({ canEdit }) => {
     handleSearch();
   }, [currentPage, pageSize, searchTrigger]);
 
+  useEffect(() => {
+    if (isNewForm || data.length === 0) return;
+    const currentId = selectedEmployee?.emplId;
+    const currentIndexOnPage = data.findIndex(
+      (item) => String(item.emplId) === String(currentId),
+    );
+    if (currentIndexOnPage === -1) {
+      const firstEmployee = data[0];
+      setSelectedEmployee(firstEmployee);
+      setSelectedRows(new Set([firstEmployee.emplId]));
+      setCurrentIndex(0);
+    } else {
+      setCurrentIndex(currentIndexOnPage);
+    }
+  }, [data, isNewForm]);
+
+  const handleAdd = () => {
+    setIsNewForm(true);
+    setSelectedEmployee(null);
+    setSelectedRows(new Set());
+    setCurrentIndex(0);
+    setIsFormView(true);
+    setIsFormDirty(false);
+    setFormInstanceKey((key) => key + 1);
+  };
+
+  const selectEmployee = (employee, index = 0) => {
+    if (!employee) return;
+    setIsNewForm(false);
+    setSelectedEmployee(employee);
+    setSelectedRows(new Set([employee.id || employee.emplId]));
+    setCurrentIndex(index);
+    setIsFormDirty(false);
+    setIsFormView(true);
+    setFormInstanceKey((key) => key + 1);
+  };
+
+  const jumpToCode = (code) => {
+    const value = String(code || "")
+      .trim()
+      .toLowerCase();
+    if (!value) return;
+    const rows = [...newRows, ...data];
+    const foundIndex = rows.findIndex(
+      (item) => String(item.emplId || "").toLowerCase() === value,
+    );
+    if (foundIndex !== -1) {
+      const found = rows[foundIndex];
+      setIsNewForm(!!found.id && !found.emplId);
+      setSelectedEmployee(found);
+      setSelectedRows(new Set([found.id || found.emplId]));
+      setCurrentIndex(Math.max(foundIndex - newRows.length, 0));
+      setIsFormDirty(false);
+      setIsFormView(true);
+      setFormInstanceKey((key) => key + 1);
+      return;
+    }
+    setSearchTerm(code);
+    setCurrentPage(1);
+    setSearchTrigger((value) => value + 1);
+  };
+
+  const handleNavigate = (direction) => {
+    if (isNewForm) return;
+    const rows = [...newRows, ...data];
+    const selectedId = selectedEmployee?.emplId || selectedEmployee?.id;
+    let index = rows.findIndex(
+      (item) => String(item.emplId || item.id) === String(selectedId),
+    );
+    if (index < 0) index = 0;
+    let nextIndex = index;
+    if (direction === "next") nextIndex = Math.min(index + 1, rows.length - 1);
+    if (direction === "prev") nextIndex = Math.max(index - 1, 0);
+    if (direction === "start") nextIndex = 0;
+    if (direction === "end") nextIndex = Math.max(rows.length - 1, 0);
+    const nextEmployee = rows[nextIndex];
+    if (!nextEmployee) return;
+    setSelectedEmployee(nextEmployee);
+    setSelectedRows(new Set([nextEmployee.id || nextEmployee.emplId]));
+    setCurrentIndex(nextIndex);
+    setIsFormDirty(false);
+    setFormInstanceKey((key) => key + 1);
+  };
+
+  const handleSaveToolbar = async () => {
+    if (isFormView) {
+      if (employeeFormRef.current?.save) await employeeFormRef.current.save();
+      return;
+    }
+    await handleBulkSave();
+  };
+
+  const handleDiscardToolbar = () => {
+    if (isFormView) {
+      setIsFormDirty(false);
+      setIsNewForm(false);
+      if (data.length > 0) {
+        const target = data[Math.min(currentIndex, data.length - 1)] || data[0];
+        setSelectedEmployee(target);
+        setSelectedRows(new Set([target.emplId]));
+      } else {
+        setSelectedEmployee(null);
+        setSelectedRows(new Set());
+      }
+      setFormInstanceKey((key) => key + 1);
+      return;
+    }
+    setNewRows([]);
+    setData((prev) => prev.map((item) => ({ ...item, isDirty: false })));
+    setSelectedRows(new Set());
+    handleSearch();
+  };
+
+  const handleToggleView = () => {
+    if (!isFormView && !selectedEmployee && data.length > 0) {
+      const firstEmployee = data[0];
+      setSelectedEmployee(firstEmployee);
+      setSelectedRows(new Set([firstEmployee.emplId]));
+      setCurrentIndex(0);
+      setIsNewForm(false);
+      setFormInstanceKey((key) => key + 1);
+    }
+    setIsFormView((current) => !current);
+  };
+
+  const handleFormDirtyChange = (dirty) => setIsFormDirty(dirty);
+
   const handleBulkSave = async () => {
     const modifiedRows = data.filter((item) => item.isDirty);
     if (modifiedRows.length === 0 && newRows.length === 0)
@@ -566,15 +700,20 @@ const EmployeeMaster = ({ canEdit }) => {
   };
 
   const handleDelete = async () => {
+    if (selectedRows.size === 0)
+      return toast.info("Select at least one employee first.");
     if (!window.confirm(`Permanently delete ${selectedRows.size} records?`))
       return;
     setIsDeleting(true);
     try {
-      for (let id of selectedRows) {
+      const newRowIds = new Set(newRows.map((row) => row.id));
+      const existingIds = [...selectedRows].filter((id) => !newRowIds.has(id));
+      for (const id of existingIds) {
         await api.delete(`${backendUrl}/api/EmployeeMaster/${id}`);
       }
-      toast.success("Records deleted successfully.");
+      setNewRows((prev) => prev.filter((row) => !selectedRows.has(row.id)));
       setSelectedRows(new Set());
+      toast.success("Records deleted successfully.");
       handleSearch();
     } catch (error) {
       toast.error("Deletion operation failed.");
@@ -619,6 +758,16 @@ const EmployeeMaster = ({ canEdit }) => {
       isDirty: true,
     }));
     setNewRows((prev) => [...entriesToPaste, ...prev]);
+    const firstPasted = entriesToPaste[0];
+    if (firstPasted) {
+      setIsNewForm(true);
+      setSelectedEmployee(firstPasted);
+      setSelectedRows(new Set([firstPasted.id]));
+      setCurrentIndex(0);
+      setIsFormDirty(true);
+      setIsFormView(true);
+      setFormInstanceKey((key) => key + 1);
+    }
     toast.success(`${entriesToPaste.length} row(s) pasted successfully.`);
   };
 
@@ -626,7 +775,7 @@ const EmployeeMaster = ({ canEdit }) => {
     // if (!canEdit("manageAccount")) return;
     const id = [...selectedRows][0];
     const employeeToEdit = data.find((item) => item.emplId === id);
-    setSelectedEmployee(accountToEdit);
+    setSelectedEmployee(employeeToEdit);
     setEditPopup(true);
   };
 
@@ -951,547 +1100,316 @@ const EmployeeMaster = ({ canEdit }) => {
   };
 
   return (
-    <div className="p-1 sm:p-2 space-y-2 text-sm sm:text-base text-gray-800 font-inter">
-      <div className="flex flex-col gap-2 ">
-        <div className="flex items-center gap-2 bg-white rounded-sm p-4 shadow-sm">
-          <BriefcaseBusiness size={20} className="text-blue-600" />
-          <h2 className="text-lg font-bold text-gray-800">Manage Employee</h2>
-        </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 relative w-full sm:w-auto">
-          <label className="input-label">Employee ID:</label>
-          <input
-            type="text"
-            className="border outline-none border-gray-300 rounded px-2 py-1.5 text-xs sm:text-sm bg-white shadow-inner w-full sm:w-64"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          />
-          <button
-            onClick={handleSearch}
-            className="btn1 btn-blue cursor-pointer"
-          >
-            Search
-          </button>
-        </div>
-      </div>
+    <div className="p-4 space-y-4 animate-in z-10 fade-in duration-500">
+      <MainContainer title="Manage Employee">
+        <Toolbar
+          isFormView={isFormView}
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+          totalRecords={data.length + newRows.length}
+          handleNavigate={handleNavigate}
+          searchValue={searchTerm}
+          setSearchValue={setSearchTerm}
+          jumpToCode={jumpToCode}
+          selectedRow={selectedEmployee}
+          isDirty={
+            isFormView
+              ? isFormDirty
+              : newRows.length > 0 || data.some((item) => item.isDirty)
+          }
+          loading={isLoading}
+          actions={{
+            onAdd: handleAdd,
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveToolbar,
+            onClear: handleDiscardToolbar,
+            onToggleView: handleToggleView,
+          }}
+        />
 
-      <div className="space-y-4 sm:p-4 rounded p-2 bg-white mb-1 shadow-sm">
-        {showFormPopup && (
-          <div className="bg-gray-50 p-4 border border-gray-300 rounded mb-4 shadow-sm animate-in fade-in slide-in-from-top-2">
-            <div className="flex flex-wrap items-end gap-4 text-xs">
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-gray-600">Apply To:</label>
-                <select
-                  className="border border-gray-500 outline-none p-1.5 rounded bg-white w-32"
-                  value={findReplaceConfig.scope}
-                  onChange={(e) =>
-                    setFindReplaceConfig({
-                      ...findReplaceConfig,
-                      scope: e.target.value,
-                    })
-                  }
-                >
-                  <option value="current">Current Page</option>
-                  <option value="selected">
-                    Selected ({selectedRows.size})
-                  </option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-gray-600">
-                  In Column:
-                </label>
-                <select
-                  className="border border-gray-500 outline-none p-1.5 rounded bg-white w-40"
-                  value={findReplaceConfig.column}
-                  onChange={(e) =>
-                    setFindReplaceConfig({
-                      ...findReplaceConfig,
-                      column: e.target.value,
-                      findValue: "",
-                      replaceValue: "",
-                    })
-                  }
-                >
-                  {/* Fix: Remove Employee ID from selection list */}
-                  {columns
-                    .filter((col) => col !== "emplId")
-                    .map((col) => (
-                      <option key={col} value={col}>
-                        {COLUMN_LABELS[col]?.replace("*", "") || col}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {getOptionsForColumn(findReplaceConfig.column) ? (
-                <>
-                  <div className="flex flex-col gap-1">
-                    <label className="font-semibold text-gray-600">
-                      Find Value:
-                    </label>
-                    <select
-                      className="border border-gray-500 p-1.5 rounded w-32 outline-none bg-white"
-                      value={findReplaceConfig.findValue}
-                      onChange={(e) =>
-                        setFindReplaceConfig({
-                          ...findReplaceConfig,
-                          findValue: e.target.value,
-                        })
-                      }
-                    >
-                      {/* Fix: Hide "Any" if it is Status column */}
-                      {findReplaceConfig.column !== "sEmplStatusCd" && (
-                        <option value="">Any</option>
-                      )}
-                      {getOptionsForColumn(findReplaceConfig.column).map(
-                        (o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </div>
-                  <div className="pb-2 font-bold text-gray-400">→</div>
-                  <div className="flex flex-col gap-1">
-                    <label className="font-semibold text-gray-600">
-                      Replace With:
-                    </label>
-                    <select
-                      className="border border-gray-500 p-1.5 rounded w-32 outline-none bg-white"
-                      value={findReplaceConfig.replaceValue}
-                      onChange={(e) =>
-                        setFindReplaceConfig({
-                          ...findReplaceConfig,
-                          replaceValue: e.target.value,
-                        })
-                      }
-                    >
-                      {/* Fix: Hide "Select..." if it is Status column */}
-                      {findReplaceConfig.column !== "sEmplStatusCd" && (
-                        <option value="">Select...</option>
-                      )}
-                      {getOptionsForColumn(findReplaceConfig.column).map(
-                        (o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-1">
-                    <label className="font-semibold text-gray-600">
-                      Find Value:
-                    </label>
-                    <input
-                      type="text"
-                      className="border border-gray-500 p-1.5 rounded w-32 outline-none"
-                      placeholder="Blank to fill data"
-                      value={findReplaceConfig.findValue}
-                      onChange={(e) =>
-                        setFindReplaceConfig({
-                          ...findReplaceConfig,
-                          findValue: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="pb-2 font-bold text-gray-400">→</div>
-                  <div className="flex flex-col gap-1">
-                    <label className="font-semibold text-gray-600">
-                      Replace With:
-                    </label>
-                    <input
-                      type="text"
-                      className="border border-gray-500 p-1.5 rounded w-32 outline-none"
-                      value={findReplaceConfig.replaceValue}
-                      onChange={(e) =>
-                        setFindReplaceConfig({
-                          ...findReplaceConfig,
-                          replaceValue: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="flex items-center gap-3 ml-auto border-l pl-4 border-gray-300">
-                <button onClick={handleFilterOnly} className="btn1 btn-blue">
-                  Find
-                </button>
-                <button onClick={handleFindReplace} className="btn1 btn-blue">
-                  Execute
-                </button>
-                <button
-                  onClick={() => {
-                    setShowFormPopup(false);
-                    handleSearch();
-                  }}
-                  className="btn1 btn-blue"
-                >
-                  Reset & Close
-                </button>
-              </div>
-            </div>
+        {isFormView ? (
+          <div className="mt-2 w-full">
+            <EmployeeMasterForm
+              key={`${selectedEmployee?.emplId || "new"}-${formInstanceKey}`}
+              ref={employeeFormRef}
+              mode={isNewForm ? "new" : "edit"}
+              selectedEmployee={selectedEmployee}
+              onClose={() => {}}
+              onDirtyChange={handleFormDirtyChange}
+              onSaveSuccess={() => {
+                setIsFormDirty(false);
+                setIsNewForm(false);
+                handleSearch();
+              }}
+            />
           </div>
-        )}
-
-        <div className="flex items-center mb-2 gap-1 w-full justify-between flex-wrap">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() =>
-                setNewRows([
-                  {
-                    id: `temp-${Date.now()}`,
-                    emplId: "",
-                    sEmplStatusCd: "ACT",
-                  },
-                  ...newRows,
-                ])
-              }
-              className="btn1 btn-blue"
-            >
-              New Employee
-            </button>
-            {(newRows.length > 0 || data.some((i) => i.isDirty)) && (
-              <>
-                <button onClick={handleBulkSave} className="btn1 btn-blue">
-                  Save Changes
-                </button>
-                <button
-                  onClick={() => {
-                    setNewRows([]);
-                    handleSearch();
-                  }}
-                  className="btn1 btn-blue"
-                >
-                  Discard Changes
-                </button>
-              </>
-            )}
-            {/* Fix: Toggle button text to "Close" when modal is open */}
-            <button
-              onClick={() => setShowFormPopup(!showFormPopup)}
-              className="btn1 btn-blue"
-            >
-              {showFormPopup ? "Close Find Replace" : "Find Replace"}
-            </button>
-            {selectedRows.size > 0 && (
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <div className="text-xs text-gray-500">Employee records</div>
               <button
-                onClick={handleCopy}
+                onClick={handleExport}
                 className="btn1 btn-blue flex items-center gap-1"
               >
-                <Copy size={14} /> Copy
-              </button>
-            )}
-            {clipboardData && selectedRows.size > 0 && (
-              <button
-                onClick={handlePaste}
-                className="btn1 btn-blue flex items-center gap-1"
-              >
-                <ClipboardPaste size={14} /> Paste
-              </button>
-            )}
-            <div className={`${showDelete ? "inline-flex" : "hidden"}`}>
-              <button
-                className="btn1 px-4 py-1.5 btn-red"
-                onClick={handleDelete}
-                disabled={isDeleting}
-              >
-                Delete ({selectedRows.size})
+                <Download size={14} /> Export
               </button>
             </div>
-          </div>
-          <div className="flex gap-x-2">
-            <button className="btn1 btn-blue flex items-center gap-1">
-              <Upload size={14} /> Import
-            </button>
-            <button
-              onClick={handleExport}
-              className="btn1 btn-blue flex items-center gap-1"
-            >
-              <Download size={14} /> Export
-            </button>
-          </div>
-        </div>
 
-        <div className="rounded border border-gray-200 overflow-hidden relative">
-          {(showNewPopup || editPopup) && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-              <div className="absolute inset-0 bg-black/40"></div>
+            <div className="overflow-x-auto max-h-[calc(100vh-220px)] min-h-[55vh]">
+              <table className="min-w-full table-auto divide-gray-200">
+                <thead className="bg-gray-200 sticky top-0 z-10">
+                  <tr>
+                    <th className="th-thead w-10">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={() =>
+                          setSelectedRows(
+                            isAllSelected
+                              ? new Set()
+                              : new Set(data.map((d) => d.emplId)),
+                          )
+                        }
+                      />
+                    </th>
+                    {columns.map((col) => {
+                      const isRequired = ["emplId", "origHireDt"].includes(col);
+                      return (
+                        <th
+                          key={col}
+                          className={`th-thead text-[10px] font-bold text-gray-600 text-center py-1 ${DATE_COLUMNS.includes(col) ? "min-w-[150px]" : "min-w-[120px]"}`}
+                        >
+                          {COLUMN_LABELS[col] || col}
+                          <span className="text-red-500">
+                            {isRequired ? "*" : ""}
+                          </span>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {isLoading ? (
+                    <tr>
+                      <td
+                        // colSpan={columns.length + 1}
+                        colSpan={5}
+                        className="text-center py-10"
+                      >
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : (
+                    [...newRows, ...data].map((item) => {
+                      const isNew = !!item.id;
+                      const rowId = isNew ? item.id : item.emplId;
+                      return (
+                        <tr
+                          key={rowId}
+                          className={`${selectedRows.has(rowId) ? "bg-blue-50" : ""} hover:bg-gray-50 transition-colors`}
+                          onDoubleClick={() =>
+                            selectEmployee(
+                              item,
+                              data.findIndex(
+                                (row) => row.emplId === item.emplId,
+                              ),
+                            )
+                          }
+                        >
+                          <td className="text-center border-r border-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.has(rowId)}
+                              onChange={() => toggleRow(rowId)}
+                            />
+                          </td>
+                          {columns.map((col) => {
+                            const isCheckbox = CHECKBOX_COLUMNS.includes(col);
+                            const isAcct = col === "acctId";
+                            const isOrg = col === "orgId";
 
-              {/* Modal Container: Sets the boundaries */}
-              <div className="relative bg-white w-full max-w-5xl h-fit max-h-[95vh] min-h-[55vh]  lg:max-h-[90vh] flex flex-col animate-premium-popup shadow-2xl rounded-lg overflow-hidden">
-                <EmployeeMasterForm
-                  onClose={() => {
-                    setShowNewPopup(false);
-                    setEditPopup(false);
+                            // Handle checkboxes
+                            if (isCheckbox) {
+                              return (
+                                <td
+                                  key={col}
+                                  className="p-2 border-r border-b border-gray-200 text-center"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      item[col] === true || item[col] === "true"
+                                    }
+                                    onChange={(e) =>
+                                      handleLocalChange(
+                                        rowId,
+                                        col,
+                                        e.target.checked,
+                                        isNew,
+                                      )
+                                    }
+                                    className="cursor-pointer"
+                                  />
+                                </td>
+                              );
+                            }
+
+                            // Determine which options to use
+                            const currentOptions = isAcct
+                              ? acctOptions
+                              : isOrg
+                                ? orgOptions
+                                : getOptionsForColumn(col);
+
+                            if (isAcct || isOrg) {
+                              return (
+                                <td
+                                  key={col}
+                                  className={`px-2 py-1 border-r border-b font-normal border-gray-300 text-gray-900 text-center min-w-[150px]`}
+                                >
+                                  <Select
+                                    options={currentOptions}
+                                    // Find the label matching the current value in the item
+                                    value={
+                                      currentOptions.find(
+                                        (o) => o.value === item[col],
+                                      ) || null
+                                    }
+                                    styles={customStyles}
+                                    menuPortalTarget={document.body}
+                                    menuPosition="fixed"
+                                    // placeholder={`Select ${isAcct ? "Account" : "Org"}...`}
+                                    placeholder={`Select`}
+                                    onChange={(opt) =>
+                                      handleLocalChange(
+                                        rowId,
+                                        col,
+                                        opt.value,
+                                        isNew,
+                                      )
+                                    }
+                                  />
+                                </td>
+                              );
+                            }
+
+                            return (
+                              <td
+                                key={col}
+                                className="p-1 border-r border-b border-gray-200"
+                              >
+                                {getOptionsForColumn(col) ? (
+                                  <Select
+                                    options={getOptionsForColumn(col)}
+                                    styles={customSelectStyles}
+                                    menuPortalTarget={document.body}
+                                    value={getOptionsForColumn(col).find(
+                                      (o) => o.value === item[col],
+                                    )}
+                                    onChange={(opt) =>
+                                      handleLocalChange(
+                                        rowId,
+                                        col,
+                                        opt.value,
+                                        isNew,
+                                      )
+                                    }
+                                  />
+                                ) : (
+                                  <input
+                                    type={
+                                      DATE_COLUMNS.includes(col)
+                                        ? "date"
+                                        : "text"
+                                    }
+                                    className={`w-full text-xs p-1 outline-none border rounded border-gray-300 bg-white ${col === "emplId" && !isNew ? "bg-gray-100 cursor-not-allowed border-none shadow-none" : ""}`}
+                                    value={getDisplayValue(item, col)}
+                                    readOnly={col === "emplId" && !isNew}
+                                    onChange={(e) =>
+                                      handleLocalChange(
+                                        rowId,
+                                        col,
+                                        e.target.value,
+                                        isNew,
+                                      )
+                                    }
+                                  />
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="w-full bg-[#e5f3fb] flex items-center justify-end gap-2 px-4 py-2 text-sm text-gray-900">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="text-[#17414d] cursor-pointer"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <div className="flex items-center gap-1">
+                <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#17414d] text-white font-bold">
+                  {currentPage}
+                </button>
+              </div>
+              <button
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                disabled={currentPage === totalPages}
+                className="text-[#17414d] cursor-pointer"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <div className="relative flex items-center rounded px-2 bg-white">
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
                   }}
-                  selectedEmployee={editPopup ? selectedEmployee : null}
-                  onSaveSuccess={() => {
-                    handleSearch();
-                    setShowNewPopup(false);
-                    setEditPopup(false);
-                  }}
+                  className="appearance-none bg-transparent py-1 pr-4 pl-1 outline-none cursor-pointer text-black"
+                >
+                  <option value={15}>15 / page</option>
+                  <option value={25}>25 / page</option>
+                  <option value={35}>35 / page</option>
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="absolute right-2 text-gray-400 pointer-events-none"
                 />
               </div>
-            </div>
-          )}
-
-          <div
-            className={`overflow-x-auto max-h-[70vh] min-h-[70vh] ${showNewPopup ? "pointer-events-none" : ""}`}
-          >
-            <table className="min-w-full table-auto divide-gray-200">
-              <thead className="bg-gray-200 sticky top-0 z-10">
-                <tr>
-                  <th className="th-thead w-10">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={() =>
-                        setSelectedRows(
-                          isAllSelected
-                            ? new Set()
-                            : new Set(data.map((d) => d.emplId)),
-                        )
-                      }
-                    />
-                  </th>
-                  {columns.map((col) => {
-                    const isRequired = ["emplId", "origHireDt"].includes(col);
-                    return (
-                      <th
-                        key={col}
-                        className={`th-thead text-[10px] font-bold text-gray-600 text-center py-1 ${DATE_COLUMNS.includes(col) ? "min-w-[150px]" : "min-w-[120px]"}`}
-                      >
-                        {COLUMN_LABELS[col] || col}
-                        <span className="text-red-500">
-                          {isRequired ? "*" : ""}
-                        </span>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {isLoading ? (
-                  <tr>
-                    <td
-                      // colSpan={columns.length + 1}
-                      colSpan={5}
-                      className="text-center py-10"
-                    >
-                      Loading...
-                    </td>
-                  </tr>
-                ) : (
-                  [...newRows, ...data].map((item) => {
-                    const isNew = !!item.id;
-                    const rowId = isNew ? item.id : item.emplId;
-                    return (
-                      <tr
-                        key={rowId}
-                        className={`${selectedRows.has(rowId) ? "bg-blue-50" : ""} hover:bg-gray-50 transition-colors`}
-                        onDoubleClick={() => {
-                          setSelectedEmployee(item);
-                          setEditPopup(true);
-                        }}
-                      >
-                        <td className="text-center border-r border-gray-300">
-                          <input
-                            type="checkbox"
-                            checked={selectedRows.has(rowId)}
-                            onChange={() => toggleRow(rowId)}
-                          />
-                        </td>
-                        {columns.map((col) => {
-                          const isCheckbox = CHECKBOX_COLUMNS.includes(col);
-                          const isAcct = col === "acctId";
-                          const isOrg = col === "orgId";
-
-                          // Handle checkboxes
-                          if (isCheckbox) {
-                            return (
-                              <td
-                                key={col}
-                                className="p-2 border-r border-b border-gray-200 text-center"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={
-                                    item[col] === true || item[col] === "true"
-                                  }
-                                  onChange={(e) =>
-                                    handleLocalChange(
-                                      rowId,
-                                      col,
-                                      e.target.checked,
-                                      isNew,
-                                    )
-                                  }
-                                  className="cursor-pointer"
-                                />
-                              </td>
-                            );
-                          }
-
-                          // Determine which options to use
-                          const currentOptions = isAcct
-                            ? acctOptions
-                            : isOrg
-                              ? orgOptions
-                              : getOptionsForColumn(col);
-
-                          if (isAcct || isOrg) {
-                            return (
-                              <td
-                                key={col}
-                                className={`px-2 py-1 border-r border-b font-normal border-gray-300 text-gray-900 text-center min-w-[150px]`}
-                              >
-                                <Select
-                                  options={currentOptions}
-                                  // Find the label matching the current value in the item
-                                  value={
-                                    currentOptions.find(
-                                      (o) => o.value === item[col],
-                                    ) || null
-                                  }
-                                  styles={customStyles}
-                                  menuPortalTarget={document.body}
-                                  menuPosition="fixed"
-                                  // placeholder={`Select ${isAcct ? "Account" : "Org"}...`}
-                                  placeholder={`Select`}
-                                  onChange={(opt) =>
-                                    handleLocalChange(
-                                      rowId,
-                                      col,
-                                      opt.value,
-                                      isNew,
-                                    )
-                                  }
-                                />
-                              </td>
-                            );
-                          }
-
-                          return (
-                            <td
-                              key={col}
-                              className="p-1 border-r border-b border-gray-200"
-                            >
-                              {getOptionsForColumn(col) ? (
-                                <Select
-                                  options={getOptionsForColumn(col)}
-                                  styles={customSelectStyles}
-                                  menuPortalTarget={document.body}
-                                  value={getOptionsForColumn(col).find(
-                                    (o) => o.value === item[col],
-                                  )}
-                                  onChange={(opt) =>
-                                    handleLocalChange(
-                                      rowId,
-                                      col,
-                                      opt.value,
-                                      isNew,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                <input
-                                  type={
-                                    DATE_COLUMNS.includes(col) ? "date" : "text"
-                                  }
-                                  className={`w-full text-xs p-1 outline-none border rounded border-gray-300 bg-white ${col === "emplId" && !isNew ? "bg-gray-100 cursor-not-allowed border-none shadow-none" : ""}`}
-                                  value={getDisplayValue(item, col)}
-                                  readOnly={col === "emplId" && !isNew}
-                                  onChange={(e) =>
-                                    handleLocalChange(
-                                      rowId,
-                                      col,
-                                      e.target.value,
-                                      isNew,
-                                    )
-                                  }
-                                />
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="w-full bg-[#e5f3fb] flex items-center justify-end gap-2 px-4 py-2 text-sm text-gray-900">
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="text-[#17414d] cursor-pointer"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <div className="flex items-center gap-1">
-              <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#17414d] text-white font-bold">
-                {currentPage}
-              </button>
-            </div>
-            <button
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-              }
-              disabled={currentPage === totalPages}
-              className="text-[#17414d] cursor-pointer"
-            >
-              <ChevronRight size={18} />
-            </button>
-            <div className="relative flex items-center rounded px-2 bg-white">
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="appearance-none bg-transparent py-1 pr-4 pl-1 outline-none cursor-pointer text-black"
-              >
-                <option value={15}>15 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={35}>35 / page</option>
-              </select>
-              <ChevronDown
-                size={14}
-                className="absolute right-2 text-gray-400 pointer-events-none"
-              />
-            </div>
-            <div className="flex items-center gap-2 ml-2">
-              <span className="font-semibold">Go to</span>
-              <input
-                type="text"
-                value={goToValue}
-                onChange={(e) =>
-                  setGoToValue(e.target.value.replace(/\D/g, ""))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setCurrentPage(Number(goToValue));
-                    setGoToValue("");
+              <div className="flex items-center gap-2 ml-2">
+                <span className="font-semibold">Go to</span>
+                <input
+                  type="text"
+                  value={goToValue}
+                  onChange={(e) =>
+                    setGoToValue(e.target.value.replace(/\D/g, ""))
                   }
-                }}
-                className="w-12 border border-gray-200 outline-none bg-white rounded py-1 text-center transition-all "
-              />
-              <span className="font-semibold">Page</span>
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setCurrentPage(Number(goToValue));
+                      setGoToValue("");
+                    }
+                  }}
+                  className="w-12 border border-gray-200 outline-none bg-white rounded py-1 text-center transition-all "
+                />
+                <span className="font-semibold">Page</span>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </>
+        )}
+      </MainContainer>
     </div>
   );
 };

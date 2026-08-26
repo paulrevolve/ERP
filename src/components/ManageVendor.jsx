@@ -2276,6 +2276,15 @@ const ManageVendor = () => {
       {activeModal.includes("Vendor Classification") && (
         <VendorClassification
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
@@ -2288,6 +2297,15 @@ const ManageVendor = () => {
       {activeModal.includes("Addresses") && (
         <Addresses
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
@@ -2300,6 +2318,15 @@ const ManageVendor = () => {
       {activeModal.includes("VAT Info") && (
         <VATInfo
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
@@ -2310,6 +2337,15 @@ const ManageVendor = () => {
       {activeModal.includes("CIS Info") && (
         <CISInfo
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
@@ -2319,6 +2355,15 @@ const ManageVendor = () => {
       )}
       {activeModal.includes("Credit Card Info") && (
         <CreditCardInfo
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           // toolbarActions={toolbarActions}
           formData={formData}
           handleInputChange={handleInputChange}
@@ -2331,6 +2376,15 @@ const ManageVendor = () => {
       )}
       {activeModal.includes("Vendor Certifications") && (
         <VendorCertifications
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           // toolbarActions={toolbarActions}
           formData={formData}
           handleInputChange={handleInputChange}
@@ -2344,6 +2398,15 @@ const ManageVendor = () => {
       {activeModal.includes("Subcontractor Info") && (
         <SubContractorInfo
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
@@ -2356,6 +2419,15 @@ const ManageVendor = () => {
       {activeModal.includes("Default Expense Accounts") && (
         <DefaultExpenseAccounts
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
@@ -2368,6 +2440,15 @@ const ManageVendor = () => {
       {activeModal.includes("User-Defined Info") && (
         <UserDefinedInfo
           // toolbarActions={toolbarActions}
+          toolbarActions={{
+            onAdd: () => {},
+            onCopy: handleCopy,
+            onPaste: handlePaste,
+            onDelete: handleDelete,
+            onSave: handleSaveAll,
+            onClear: handleDiscard,
+            onToggleView: () => setIsFormView(!isFormView),
+          }}
           formData={formData}
           handleInputChange={handleInputChange}
           onClose={() =>
