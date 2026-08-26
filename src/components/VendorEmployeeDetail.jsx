@@ -1081,36 +1081,40 @@ export const VendorEmployeeDetail = ({
               <ActionDetailButton
                 label="Labor Information and History"
                 icon={History}
-                isActive={activeSubModal.includes("Labor")}
+                // isActive={activeSubModal.includes("Labor")}
+                isActive={activeSubModal[0] === "Labor"}
                 onClick={() =>
-                  setActiveSubModal((prevArray) => [...prevArray, "Labor"])
+                  setActiveSubModal((prevArray) => ["Labor", ...prevArray])
                 }
               />
               <ActionDetailButton
                 label="Certifications"
                 icon={Award}
-                isActive={activeSubModal.includes("Certification")}
+                // isActive={activeSubModal.includes("Certification")}
+                isActive={activeSubModal[0] === "Certification"}
                 onClick={() =>
                   setActiveSubModal((prevArray) => [
-                    ...prevArray,
                     "Certification",
+                    ...prevArray,
                   ])
                 }
               />
               <ActionDetailButton
                 label="Skills"
                 icon={ShieldCheck}
-                isActive={activeSubModal.includes("Skills")}
+                // isActive={activeSubModal.includes("Skills")}
+                isActive={activeSubModal[0] === "Skills"}
                 onClick={() =>
-                  setActiveSubModal((prevArray) => [...prevArray, "Skills"])
+                  setActiveSubModal((prevArray) => ["Skills", ...prevArray])
                 }
               />
               <ActionDetailButton
                 label="Trainings"
                 icon={GraduationCap}
-                isActive={activeSubModal.includes("Trainings")}
+                // isActive={activeSubModal.includes("Trainings")}
+                isActive={activeSubModal[0] === "Trainings"}
                 onClick={() =>
-                  setActiveSubModal((prevArray) => [...prevArray, "Trainings"])
+                  setActiveSubModal((prevArray) => ["Trainings", ...prevArray])
                 }
               />
               {/* <ActionDetailButton
@@ -1122,15 +1126,17 @@ export const VendorEmployeeDetail = ({
               <ActionDetailButton
                 label="Properties"
                 icon={Settings2}
-                isActive={activeSubModal.includes("Properties")}
+                // isActive={activeSubModal.includes("Properties")}
+                isActive={activeSubModal[0] === "Properties"}
                 onClick={() =>
-                  setActiveSubModal((prevArray) => [...prevArray, "Properties"])
+                  setActiveSubModal((prevArray) => ["Properties", ...prevArray])
                 }
               />
             </div>
 
             {/* Render the inner view based on activeSubModal */}
-            {activeSubModal.includes("Properties") && (
+            {/* {activeSubModal.includes("Properties") && ( */}
+            {activeSubModal[0] === "Properties" && (
               <VendorEmployeeProperties
                 selectedRow={selectedRow || selectedEmp}
                 selectedVendorEmp={selectedEmp}
@@ -1139,7 +1145,8 @@ export const VendorEmployeeDetail = ({
               />
             )}
 
-            {activeSubModal.includes("Trainings") && (
+            {/* {activeSubModal.includes("Trainings") && ( */}
+            {activeSubModal[0] === "Trainings" && (
               <VendorEmployeeTraining
                 selectedRow={selectedRow || selectedEmp}
                 selectedVendorEmp={selectedEmp}
@@ -1148,7 +1155,8 @@ export const VendorEmployeeDetail = ({
               />
             )}
 
-            {activeSubModal.includes("Skills") && (
+            {/* {activeSubModal.includes("Skills") && ( */}
+            {activeSubModal[0] === "Skills" && (
               <VendorEmployeeSkills
                 selectedRow={selectedRow || selectedEmp}
                 selectedVendorEmp={selectedEmp}
@@ -1157,7 +1165,7 @@ export const VendorEmployeeDetail = ({
               />
             )}
 
-            {activeSubModal.includes("Certification") && (
+            {activeSubModal[0] === "Certification" && (
               <VendorEmployeeCertification
                 selectedRow={selectedRow || selectedEmp}
                 selectedVendorEmp={selectedEmp}
@@ -1166,7 +1174,8 @@ export const VendorEmployeeDetail = ({
               />
             )}
 
-            {activeSubModal.includes("Labor") && (
+            {/* {activeSubModal.includes("Labor") && ( */}
+            {activeSubModal[0] === "Labor" && (
               <VendorEmployeeLabour
                 selectedRow={selectedRow || selectedEmp}
                 setActiveSub={setActiveSub}
@@ -6671,30 +6680,34 @@ export const Addresses = ({
           <ActionDetailButton
             label="Contacts"
             icon={History}
-            isActive={activeSubModal.includes("Contacts")}
+            // isActive={activeSubModal.includes("Contacts")}
+            isActive={activeSubModal[0] === "Contacts"}
             onClick={() =>
-              setActiveSubModal((prevArray) => [...prevArray, "Contacts"])
+              setActiveSubModal((prevArray) => ["Contacts", ...prevArray])
             }
           />
           <ActionDetailButton
             label="EFT Info (Non-US)"
             icon={History}
-            isActive={activeSubModal.includes("EFTI(NONUS)")}
+            // isActive={activeSubModal.includes("EFTI(NONUS)")}
+            isActive={activeSubModal[0] === "EFTI(NONUS)"}
             onClick={() =>
-              setActiveSubModal((prevArray) => [...prevArray, "EFTI(NONUS)"])
+              setActiveSubModal((prevArray) => ["EFTI(NONUS)", ...prevArray])
             }
           />
           <ActionDetailButton
             label="EFT Info (US)"
             icon={History}
-            isActive={activeSubModal.includes("EFTI(US)")}
+            // isActive={activeSubModal.includes("EFTI(US)")}
+            isActive={activeSubModal[0] === "EFTI(US)"}
             onClick={() =>
-              setActiveSubModal((prevArray) => [...prevArray, "EFTI(US)"])
+              setActiveSubModal((prevArray) => ["EFTI(US)", ...prevArray])
             }
           />
         </div>
 
-        {activeSubModal.includes("Contacts") && (
+        {/* {activeSubModal.includes("Contacts") && ( */}
+        {activeSubModal[0] === "Contacts" && (
           <MainContainer
             className="mt-2"
             title="Contacts"
@@ -6801,7 +6814,8 @@ export const Addresses = ({
           </MainContainer>
         )}
 
-        {activeSubModal.includes("EFTI(NONUS)") && (
+        {/* {activeSubModal.includes("EFTI(NONUS)") && ( */}
+        {activeSubModal[0] === "EFTI(NONUS)" && (
           <MainContainer
             className="mt-4"
             title="EFT Info (Non-US)"
@@ -6932,7 +6946,8 @@ export const Addresses = ({
           </MainContainer>
         )}
 
-        {activeSubModal.includes("EFTI(US)") && (
+        {/* {activeSubModal.includes("EFTI(US)") && ( */}
+        {activeSubModal[0] === "EFTI(US)" && (
           <MainContainer
             className="mt-4"
             title="EFT Info (US)"
@@ -8339,13 +8354,13 @@ export const SubContractorInfo = ({
             label="Bond"
             icon={User}
             isActive={
-              activeSubModal.includes("Bond") || activeSubModal.includes
+              activeSubModal[0] === "Bond" || activeSubModal[0] === "BondInfo"
             }
             onClick={() =>
               setActiveSubModal((prevArray) => [
-                ...prevArray,
                 "Bond",
                 "BondInfo",
+                ...prevArray,
               ])
             }
           />
@@ -8353,29 +8368,31 @@ export const SubContractorInfo = ({
             label="Insurance"
             icon={Layers}
             isActive={
-              activeSubModal.includes("Insurance") ||
-              activeSubModal.includes("InsuranceInfo")
+              activeSubModal[0] === "Insurance" ||
+              activeSubModal[0] === "InsuranceInfo"
             }
             onClick={() =>
               setActiveSubModal((prevArray) => [
-                ...prevArray,
                 "Insurance",
                 "InsuranceInfo",
+                ...prevArray,
               ])
             }
           />
           <ActionDetailButton
             label="Lien"
             icon={ShieldCheck}
-            isActive={activeSubModal.includes("Lien")}
+            // isActive={activeSubModal.includes("Lien")}
+            isActive={activeSubModal[0] === "Lien"}
             onClick={() =>
-              setActiveSubModal((prevArray) => [...prevArray, "Lien"])
+              setActiveSubModal((prevArray) => ["Lien", ...prevArray])
             }
           />
         </div>
 
-        {(activeSubModal.includes("Bond") ||
-          activeSubModal.includes("BondInfo")) && (
+        {/* {(activeSubModal.includes("Bond") ||
+          activeSubModal.includes("BondInfo")) && ( */}
+        {(activeSubModal[0] === "Bond" || activeSubModal[0] === "BondInfo") && (
           <div className="space-y-3 mt-2">
             {activeSubModal.includes("Bond") && (
               <MainContainer
@@ -8514,8 +8531,8 @@ export const SubContractorInfo = ({
             )}
           </div>
         )}
-        {(activeSubModal.includes("Insurance") ||
-          activeSubModal.includes("InsuranceInfo")) && (
+        {(activeSubModal[0] === "Insurance" ||
+          activeSubModal[0] === "InsuranceInfo") && (
           <div className="space-y-3 mt-2">
             <MainContainer
               title="Insurance"
@@ -8643,7 +8660,8 @@ export const SubContractorInfo = ({
             </MainContainer>
           </div>
         )}
-        {activeSubModal.includes("Lien") && (
+        {/* {activeSubModal.includes("Lien") && ( */}
+        {activeSubModal[0] === "Lien" && (
           <div className="space-y-3 mt-2">
             <MainContainer
               title="Lien"
@@ -8715,28 +8733,28 @@ export const SubContractorInfo = ({
                     <FormInput
                       label="Phone Number"
                       type="number"
-                      value={formData.addresses.address1}
+                      value={formData.addresses?.address1}
                       onChange={(e) =>
                         handleInputChange("address1", e.target.value)
                       }
                     />
                     <FormInput
                       label="Address Line 1"
-                      value={formData.addresses.addressLine1}
+                      value={formData.addresses?.addressLine1}
                       onChange={(e) =>
                         handleInputChange("addressLine1", e.target.value)
                       }
                     />
                     <FormInput
                       label="Address Line 2"
-                      value={formData.addresses.addressLine2}
+                      value={formData.addresses?.addressLine2}
                       onChange={(e) =>
                         handleInputChange("addressLine2", e.target.value)
                       }
                     />
                     <FormInput
                       label="Address Line 3"
-                      value={formData.addresses.addressLine3}
+                      value={formData.addresses?.addressLine3}
                       onChange={(e) =>
                         handleInputChange("addressLine3", e.target.value)
                       }
