@@ -3,23 +3,253 @@ import { backendUrl } from "./config";
 import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { Search, ChevronDown } from "lucide-react";
-import { MainContainer, Toolbar, SecondaryContainer } from "../helper/container";
+import {
+  Search,
+  ChevronDown,
+  Plus,
+  Copy,
+  ClipboardPaste,
+  Trash2,
+  X,
+  Save,
+  LayoutGrid,
+  FileText,
+  Receipt,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
+import { MainContainer, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
 
-// Custom form section and styled inputs matching generic aesthetics
-const FormSection = ({ title, children, className = "" }) => {
+const ManageSalesTaxIcon = () => (
+  <div className="p-1 bg-[#f0f4f9] border border-[#d5dfeb] rounded-md shadow-2xs -mr-2 flex items-center justify-center">
+    <Receipt size={16} className="text-[#344a63]" />
+  </div>
+);
+
+const SalesTaxToolbar = ({
+  isFormView,
+  currentIndex = 0,
+  totalRecords = 0,
+  handleNavigate,
+  jumpToCode,
+  searchValue = "",
+  setSearchValue,
+  loading = false,
+  actions = {},
+  buttonsDisable = [],
+  clipboard = [],
+  selectedRow = null,
+  selectedCount = 0,
+}) => {
+  const { onAdd, onCopy, onPaste, onClear, onDelete, onSave, onToggleView } = actions;
+  const hasSelection = isFormView ? (!!selectedRow && totalRecords > 0) : (selectedCount > 0);
+  const isCopyDisabled = loading || !hasSelection;
+  const isDeleteDisabled = loading || !hasSelection;
+  const isPasteDisabled = loading || !clipboard || clipboard.length === 0;
+
   return (
-    <div className={`relative rounded border border-slate-200 bg-white py-3 px-3 shadow-none ${className}`}>
-      {title && (
-        <div className="flex items-center gap-2 pb-1.5 mb-2.5 border-b border-slate-200 select-none">
-          <span className="text-xs font-bold text-gray-700">{title}</span>
-        </div>
-      )}
-      <div className="space-y-1.5">{children}</div>
+    <div className="flex items-center justify-between gap-2 pb-2 px-2 flex-wrap">
+      {/* LEFT SECTION: Search & Navigation */}
+      <div className="flex items-center gap-3">
+        {setSearchValue && (
+          <div className="relative group">
+            <Search
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-[#1677e8] transition-colors"
+              size={14}
+              onClick={() => {
+                if (searchValue && jumpToCode) {
+                  jumpToCode(searchValue);
+                  setSearchValue("");
+                }
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="pl-8 pr-2.5 h-8 w-40 text-[11px] bg-[#f6f6f6] border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:bg-white focus:border-[#1677e8] transition-all"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && jumpToCode) {
+                  jumpToCode(searchValue);
+                  setSearchValue("");
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {isFormView && handleNavigate && (
+          <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
+            {/* First */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="First record"
+              disabled={currentIndex <= 0 || loading}
+              onClick={() => handleNavigate("start")}
+            >
+              <ChevronsLeft size={16} strokeWidth={1.5} />
+            </button>
+
+            {/* Previous */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="Previous record"
+              disabled={currentIndex <= 0 || loading}
+              onClick={() => handleNavigate("prev")}
+            >
+              <ChevronLeft size={16} strokeWidth={1.5} />
+            </button>
+
+            {/* Count */}
+            <span className="voucher-count">
+              {totalRecords > 0 ? currentIndex + 1 : 0} / {totalRecords}
+            </span>
+
+            {/* Next */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="Next record"
+              disabled={currentIndex >= totalRecords - 1 || loading}
+              onClick={() => handleNavigate("next")}
+            >
+              <ChevronRight size={16} strokeWidth={1.5} />
+            </button>
+
+            {/* Last */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="Last record"
+              disabled={currentIndex >= totalRecords - 1 || loading}
+              onClick={() => handleNavigate("end")}
+            >
+              <ChevronsRight size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT SECTION: Action Buttons */}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        {!buttonsDisable.includes("add") && onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={loading}
+            className="voucher-primary-btn"
+          >
+            <Plus size={14} /> Create
+          </button>
+        )}
+
+        {!buttonsDisable.includes("copy") && onCopy && (
+          <button
+            type="button"
+            onClick={onCopy}
+            disabled={isCopyDisabled}
+            className="voucher-head-btn"
+          >
+            <Copy size={14} /> Copy
+          </button>
+        )}
+
+        {!buttonsDisable.includes("paste") && onPaste && (
+          <button
+            type="button"
+            onClick={onPaste}
+            disabled={isPasteDisabled}
+            className="voucher-head-btn"
+          >
+            <ClipboardPaste size={14} /> Paste
+          </button>
+        )}
+
+        {!buttonsDisable.includes("delete") && onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleteDisabled}
+            className="voucher-head-btn"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+        )}
+
+        {!buttonsDisable.includes("discard") && onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={loading}
+            className="voucher-head-btn"
+          >
+            Cancel
+          </button>
+        )}
+
+        {!buttonsDisable.includes("save") && onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading}
+            className="voucher-head-btn"
+          >
+            <Save size={14} /> Save
+          </button>
+        )}
+
+        {!buttonsDisable.includes("tableform") && onToggleView && (
+          <button
+            type="button"
+            onClick={onToggleView}
+            disabled={loading}
+            className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50"
+          >
+            <span
+              className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                isFormView ? "left-[3px]" : "left-[41px]"
+              }`}
+            />
+            <span
+              className={`relative z-10 flex w-1/2 items-center justify-center text-[10px] font-semibold ${
+                isFormView ? "text-[#1677e8]" : "text-[#7b8798]"
+              }`}
+            >
+              Form
+            </span>
+            <span
+              className={`relative z-10 flex w-1/2 items-center justify-center text-[10px] font-semibold ${
+                !isFormView ? "text-[#1677e8]" : "text-[#7b8798]"
+              }`}
+            >
+              Table
+            </span>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
+
+const FormSection = ({ title, children, className = "", headerRight }) => (
+  <div className={`bg-white border border-[#e5e7eb] rounded-lg shadow-xs overflow-hidden ${className}`}>
+    {title && (
+      <div className="px-3.5 py-2 bg-white border-b border-[#eeeeee] flex items-center justify-between">
+        <h3 className="text-[12px] font-semibold text-[#3c4043] tracking-normal select-none">
+          {title}
+        </h3>
+        {headerRight && <div>{headerRight}</div>}
+      </div>
+    )}
+    <div className="p-3.5">{children}</div>
+  </div>
+);
 
 const FormInput = ({
   label,
@@ -32,38 +262,102 @@ const FormInput = ({
   readOnly,
   disabled,
   className = "",
-  placeholder,
+  placeholder = "",
   horizontal,
   inputClassName = "",
+  labelClassName = "",
+  helperText = "",
+  icon: Icon,
+  onIconClick,
 }) => {
-  const isClickable = type === "checkbox" || type === "radio";
+  const [radioName] = useState(() => `radio-${label ? String(label).replace(/[^a-zA-Z0-9]/g, "") : "field"}-${Math.random().toString(36).substr(2, 9)}`);
+
+  let containerClassName = className;
+  if (type === "checkbox") {
+    containerClassName = className
+      .replace(/\bw-\[[^\]]+\]/g, "")
+      .replace(/\bw-\d+/g, "") + " w-auto min-w-fit flex-shrink-0";
+  }
+
+  if (type === "checkbox") {
+    const isChecked = checked === true || checked === "Y";
+    return (
+      <div className={`flex items-center gap-2.5 py-1 ${containerClassName}`}>
+        {label && (
+          <label className={`text-[11px] font-medium text-[#5f6368] select-none shrink-0 ${labelClassName || "min-w-[120px]"}`}>
+            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+          </label>
+        )}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
+            <input
+              type="radio"
+              name={radioName}
+              checked={isChecked}
+              onChange={() => {
+                if (onChange && !disabled) {
+                  onChange({ target: { checked: true, value: "Y" } });
+                }
+              }}
+              disabled={disabled}
+              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+            />
+            Yes
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
+            <input
+              type="radio"
+              name={radioName}
+              checked={!isChecked}
+              onChange={() => {
+                if (onChange && !disabled) {
+                  onChange({ target: { checked: false, value: "N" } });
+                }
+              }}
+              disabled={disabled}
+              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+            />
+            No
+          </label>
+        </div>
+        {helperText && (
+          <p className="text-[10px] text-slate-400 pl-2 leading-tight select-none">{helperText}</p>
+        )}
+      </div>
+    );
+  }
+
+  const isClickable = type === "radio";
 
   if (isClickable) {
     return (
-      <div className="w-full flex items-center pt-0.5 pb-0.5">
-        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
-          <input
-            type={type}
-            checked={checked}
-            onChange={onChange}
-            disabled={disabled}
-            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
-          />
-          <span className="text-[11px] font-semibold text-slate-700">{label}</span>
-        </label>
+      <div className={`flex items-center gap-2 py-1 ${className}`}>
+        <input
+          type={type}
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          className="w-4 h-4 rounded-full border-slate-300 text-slate-900 cursor-pointer accent-blue-600"
+        />
+        {label && (
+          <label className={`text-[11px] font-medium text-[#5f6368] cursor-pointer select-none ${labelClassName}`}>
+            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+          </label>
+        )}
       </div>
     );
   }
 
   if (horizontal) {
     return (
-      <div className={`flex items-center justify-between gap-4 w-full ${className}`}>
+      <div className={`flex items-center gap-3 py-0.5 ${className}`}>
         {label && (
-          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
-            {label} {required && <span>*</span>}
-          </span>
+          <label className={`text-[11px] font-medium text-[#5f6368] min-w-[110px] text-left select-none flex items-center gap-0.5 ${labelClassName}`}>
+            <span>{label}</span>
+            {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
+          </label>
         )}
-        <div className="w-3/5">
+        <div className="relative flex-1 min-w-0 flex items-center">
           <input
             type={type}
             value={value ?? ""}
@@ -72,38 +366,64 @@ const FormInput = ({
             readOnly={readOnly}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
-              ${readOnly || disabled 
-                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
-                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
-              }`}
+            className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
+              Icon ? "pr-8" : ""
+            } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
+              readOnly || disabled ? "cursor-default select-text" : "cursor-text"
+            }`}
           />
+          {Icon && (
+            <div
+              onClick={onIconClick}
+              className={`absolute right-2.5 flex items-center justify-center text-slate-400 ${
+                onIconClick ? "cursor-pointer hover:text-slate-600" : "pointer-events-none"
+              }`}
+            >
+              <Icon size={14} />
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex flex-col gap-1 w-full ${className}`}>
+    <div className={`flex flex-col gap-1 w-full min-w-0 ${className}`}>
       {label && (
-        <span className="text-[11px] font-semibold text-slate-700 select-none">
-          {label} {required && <span>*</span>}
-        </span>
+        <label className={`text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap ${labelClassName}`}>
+          <span>{label}</span>
+          {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
+        </label>
       )}
-      <input
-        type={type}
-        value={value ?? ""}
-        onChange={onChange}
-        onBlur={onBlur}
-        readOnly={readOnly}
-        disabled={disabled}
-        placeholder={placeholder}
-        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
-          ${readOnly || disabled 
-            ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
-            : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+      <div className="relative w-full flex items-center">
+        <input
+          type={type}
+          value={value ?? ""}
+          onChange={onChange}
+          onBlur={onBlur}
+          readOnly={readOnly}
+          disabled={disabled}
+          placeholder={placeholder}
+          className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
+            Icon ? "pr-8" : ""
+          } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
+            readOnly || disabled ? "cursor-default select-text" : "cursor-text"
           }`}
-      />
+        />
+        {Icon && (
+          <div
+            onClick={onIconClick}
+            className={`absolute right-2.5 flex items-center justify-center text-slate-400 ${
+              onIconClick ? "cursor-pointer hover:text-slate-600" : "pointer-events-none"
+            }`}
+          >
+            <Icon size={14} />
+          </div>
+        )}
+      </div>
+      {helperText && (
+        <span className="text-[10px] text-slate-400 select-none">{helperText}</span>
+      )}
     </div>
   );
 };
@@ -119,6 +439,7 @@ const SearchableCombobox = ({
   readOnly = false,
   disabled = false,
   className = "",
+  labelClassName = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -180,11 +501,12 @@ const SearchableCombobox = ({
   };
 
   return (
-    <div ref={containerRef} className={`flex flex-col gap-1 w-full relative ${className}`}>
+    <div ref={containerRef} className={`flex flex-col gap-1 w-full min-w-0 relative ${className}`}>
       {label && (
-        <span className="text-[11px] font-semibold text-slate-700 select-none">
-          {label} {required && <span>*</span>}
-        </span>
+        <label className={`text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap ${labelClassName}`}>
+          <span>{label}</span>
+          {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
+        </label>
       )}
       <div className="relative w-full flex items-center">
         <input
@@ -195,11 +517,9 @@ const SearchableCombobox = ({
           readOnly={readOnly}
           disabled={disabled}
           placeholder={placeholder}
-          className={`w-full px-2 py-0.5 pr-7 rounded border text-[11px] font-medium transition-all duration-150 outline-none
-            ${readOnly || disabled 
-              ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
-              : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
-            }`}
+          className={`w-full h-8 text-[12px] font-normal px-2.5 pr-7 py-1 rounded transition-all outline-none border-0 shadow-none bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
+            readOnly || disabled ? "cursor-default select-text" : "cursor-text"
+          }`}
         />
         <button
           type="button"
@@ -213,14 +533,14 @@ const SearchableCombobox = ({
       </div>
 
       {isOpen && !readOnly && !disabled && (
-        <div className="absolute top-full left-0 min-w-full w-max max-w-sm z-50 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded shadow-lg text-[11px]">
+        <div className="absolute top-full left-0 min-w-full w-max max-w-sm z-50 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg text-[11px]">
           {filteredOptions.length > 0 ? (
             filteredOptions.map((opt, idx) => (
               <div
                 key={`${opt.value}_${idx}`}
                 onClick={() => handleSelectOption(opt)}
-                className={`px-2 py-1.5 hover:bg-slate-100 cursor-pointer flex justify-between items-center whitespace-nowrap ${
-                  String(opt.value) === String(value) ? "bg-slate-50 font-bold text-[#17414d]" : "text-slate-700"
+                className={`px-2.5 py-1.5 hover:bg-[#f5f8fb] cursor-pointer flex justify-between items-center whitespace-nowrap ${
+                  String(opt.value) === String(value) ? "bg-[#e8f0fe] font-bold text-[#1677e8]" : "text-[#3c4043]"
                 }`}
               >
                 <span>{opt.label}</span>
@@ -230,7 +550,7 @@ const SearchableCombobox = ({
               </div>
             ))
           ) : (
-            <div className="px-2 py-2 text-slate-400 text-center italic text-[10px]">
+            <div className="px-2.5 py-2 text-slate-400 text-center italic text-[10px]">
               No matching options
             </div>
           )}
@@ -394,8 +714,8 @@ export const ManageSalesTaxes = () => {
     suspenseRefNo2Desc: "",
   };
 
-  const getTaxKey = (row) => row ? String(row.tempId || row.uniqueKey || row.taxCode || "") : "";
-  const getAccountKey = (row) => row ? String(row.tempId || row.uniqueKey || row.accountKey || `${row.account}_${row.organization}` || "") : "";
+  const getTaxKey = (row) => row ? String(row.uniqueKey || row.tempId || row.taxCode || "") : "";
+  const getAccountKey = (row) => row ? String(row.uniqueKey || row.tempId || row.taxAcctId || row.accountKey || (row.account && row.organization ? `${row.taxCode || ""}_${row.companyId || ""}_${row.account}_${row.organization}` : "")) : "";
 
   // Column definitions for the tables
   const taxColumns = [
@@ -652,13 +972,15 @@ export const ManageSalesTaxes = () => {
         api.get(`${backendUrl}/api/sales-taxes`),
         api.get(`${backendUrl}/api/sales-tax-accounts`)
       ]);
-      const taxes = (taxRes.data || []).map((tax) => ({
+      const taxes = (taxRes.data || []).map((tax, idx) => ({
         ...tax,
+        uniqueKey: tax.taxCode || `TAX_${Date.now()}_${idx}`,
         isNew: false,
         accounts: (acctRes.data || [])
           .filter(a => a.companyId === tax.companyId && a.taxCode === tax.taxCode)
-          .map((a) => ({
+          .map((a, aIdx) => ({
             ...a,
+            uniqueKey: a.taxAcctId ? String(a.taxAcctId) : (a.accountKey ? String(a.accountKey) : `ACC_${tax.taxCode}_${a.companyId || '1'}_${a.account || ''}_${a.organization || ''}_${aIdx}`),
             isNew: false
           }))
       }));
@@ -672,15 +994,19 @@ export const ManageSalesTaxes = () => {
         setSelectedAccountKeys(new Set());
         setAccountCurrentIndex(0);
       } else {
+        const defaultAccId = `ACC_${Date.now()}`;
         const defaultAcc = {
           ...initialAccountState,
-          tempId: `ACC_${Date.now()}`,
+          tempId: defaultAccId,
+          uniqueKey: defaultAccId,
           isNew: true,
           isDirty: true
         };
+        const defaultTaxId = `TEMP_${Date.now()}`;
         const defaultNewTax = {
           ...initialTaxState,
-          tempId: `TEMP_${Date.now()}`,
+          tempId: defaultTaxId,
+          uniqueKey: defaultTaxId,
           isNew: true,
           isDirty: true,
           accounts: [defaultAcc]
@@ -695,15 +1021,19 @@ export const ManageSalesTaxes = () => {
       localStorage.removeItem("salesTaxesData");
     } catch (e) {
       console.error("Fetch sales taxes error:", e);
+      const defaultAccId = `ACC_${Date.now()}`;
       const defaultAcc = {
         ...initialAccountState,
-        tempId: `ACC_${Date.now()}`,
+        tempId: defaultAccId,
+        uniqueKey: defaultAccId,
         isNew: true,
         isDirty: true
       };
+      const defaultTaxId = `TEMP_${Date.now()}`;
       const defaultNewTax = {
         ...initialTaxState,
-        tempId: `TEMP_${Date.now()}`,
+        tempId: defaultTaxId,
+        uniqueKey: defaultTaxId,
         isNew: true,
         isDirty: true,
         accounts: [defaultAcc]
@@ -838,12 +1168,14 @@ export const ManageSalesTaxes = () => {
     const newAcc = {
       ...initialAccountState,
       tempId: newAccId,
+      uniqueKey: newAccId,
       isNew: true,
       isDirty: true
     };
     const newRow = {
       ...initialTaxState,
       tempId: newId,
+      uniqueKey: newId,
       isNew: true,
       isDirty: true,
       accounts: [newAcc]
@@ -990,23 +1322,25 @@ export const ManageSalesTaxes = () => {
       ...target,
       taxCode: `${target.taxCode}-C`,
       tempId: newId,
+      uniqueKey: newId,
       isNew: true,
       isDirty: true,
       accounts: (target.accounts || []).map((a, idx) => ({
         ...a,
         tempId: `ACC_${Date.now()}_${idx}`,
+        uniqueKey: `ACC_${Date.now()}_${idx}`,
         isNew: true,
         isDirty: true
       }))
     };
     setSalesTaxes([pastedRow, ...salesTaxes]);
     setSelectedTax(pastedRow);
-    setSelectedTaxCodes(new Set());
+    setSelectedTaxCodes(new Set([newId]));
     setCurrentIndex(0);
 
     // Reset sub-components
     setSelectedAccount(pastedRow.accounts[0] || null);
-    setSelectedAccountKeys(new Set());
+    setSelectedAccountKeys(pastedRow.accounts[0] ? new Set([pastedRow.accounts[0].uniqueKey]) : new Set());
     toast.success("Record pasted successfully.");
   };
 
@@ -1026,12 +1360,12 @@ export const ManageSalesTaxes = () => {
     setCurrentIndex(nextIdx);
     const target = salesTaxes[nextIdx];
     setSelectedTax(target);
-    setSelectedTaxCodes(new Set());
+    setSelectedTaxCodes(new Set([getTaxKey(target)]));
 
     // Reset sub-components
     const accs = target.accounts || [];
     setSelectedAccount(accs[0] || null);
-    setSelectedAccountKeys(new Set());
+    setSelectedAccountKeys(accs[0] ? new Set([getAccountKey(accs[0])]) : new Set());
     setAccountCurrentIndex(0);
   };
 
@@ -1043,10 +1377,10 @@ export const ManageSalesTaxes = () => {
       setCurrentIndex(idx);
       const target = salesTaxes[idx];
       setSelectedTax(target);
-      setSelectedTaxCodes(new Set());
+      setSelectedTaxCodes(new Set([getTaxKey(target)]));
       const accs = target.accounts || [];
       setSelectedAccount(accs[0] || null);
-      setSelectedAccountKeys(new Set());
+      setSelectedAccountKeys(accs[0] ? new Set([getAccountKey(accs[0])]) : new Set());
       setAccountCurrentIndex(0);
     } else {
       toast.warn("Tax Code not found.");
@@ -1055,7 +1389,7 @@ export const ManageSalesTaxes = () => {
 
   // --- Level 2 (Accounts) Actions ---
   const handleAccountInputChange = (field, value, rowId) => {
-    if (!selectedTax || !selectedAccount) return;
+    if (!selectedTax) return;
 
     let updates = { [field]: value };
 
@@ -1113,13 +1447,14 @@ export const ManageSalesTaxes = () => {
     const newRow = {
       ...initialAccountState,
       tempId,
+      uniqueKey: tempId,
       isNew: true,
       isDirty: true
     };
     const updatedAccs = [newRow, ...(selectedTax.accounts || [])];
     updateSelectedTax({ accounts: updatedAccs });
     setSelectedAccount(newRow);
-    setSelectedAccountKeys(new Set());
+    setSelectedAccountKeys(new Set([tempId]));
     setAccountCurrentIndex(0);
   };
 
@@ -1137,6 +1472,7 @@ export const ManageSalesTaxes = () => {
       ...target,
       account: `${target.account}-C`,
       tempId,
+      uniqueKey: tempId,
       isNew: true,
       isDirty: true
     };
@@ -1243,8 +1579,19 @@ export const ManageSalesTaxes = () => {
     : "";
 
   return (
-    <div className="mt-14 ml-4 font-inter text-[#17414d] space-y-4 pb-16">
+    <div className="salestax-page p-4 space-y-4 font-inter text-[#1f2937]">
       <style>{`
+        .salestax-page { font-size:12px; color:#1f2937; }
+        .salestax-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .salestax-page .voucher-head-btn:hover:not(:disabled) { background:#f5f8fb; border-color:#b9c8d8; }
+        .salestax-page .voucher-head-btn:disabled { opacity:0.4; cursor:not-allowed; }
+        .salestax-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .salestax-page .voucher-primary-btn:hover:not(:disabled) { background:#125bc3; border-color:#125bc3; }
+        .salestax-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; transition:all 0.15s ease; }
+        .salestax-page .voucher-nav-btn:last-child { border-right:0; }
+        .salestax-page .voucher-nav-btn:hover:not(:disabled) { background:#eaf1f7; color:#17414d; }
+        .salestax-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .salestax-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
         .td-input[readonly] {
           background-color: #f8fafc !important;
           color: #94a3b8 !important;
@@ -1264,16 +1611,18 @@ export const ManageSalesTaxes = () => {
       `}</style>
 
       {/* LEVEL 1: TAXES */}
-      <MainContainer title="Manage Sales or Value Added Taxes">
-        <Toolbar
+      <MainContainer title="Manage Sales or Value Added Taxes" icon={ManageSalesTaxIcon}>
+        <SalesTaxToolbar
           isFormView={isFormView}
           handleNavigate={handleNavigate}
           jumpToCode={jumpToCode}
           totalRecords={filteredSalesTaxes.length}
           selectedRow={selectedTax}
+          selectedCount={selectedTaxCodes.size}
           searchValue={searchValue}
           setSearchValue={setSearchValue}
           loading={loading}
+          clipboard={clipboard}
           actions={{
             onAdd: handleAdd,
             onSave: handleSaveAll,
@@ -1285,7 +1634,7 @@ export const ManageSalesTaxes = () => {
               if (!isFormView && !selectedTax && filteredSalesTaxes.length > 0) {
                 const firstRecord = filteredSalesTaxes[0];
                 setSelectedTax(firstRecord);
-                setSelectedTaxCodes(new Set());
+                setSelectedTaxCodes(new Set([getTaxKey(firstRecord)]));
               }
               setIsFormView(!isFormView);
             }
@@ -1293,7 +1642,7 @@ export const ManageSalesTaxes = () => {
           currentIndex={currentIndex}
         />
 
-        <div className="mt-2 text-xs">
+        <div className="mt-1.5 text-xs">
           {!isFormView ? (
             <div className="bg-white border border-gray-200 p-2">
               <ReusableTable
@@ -1324,22 +1673,43 @@ export const ManageSalesTaxes = () => {
                     setSelectedTax(item);
                     const idx = salesTaxes.findIndex(c => getTaxKey(c) === key);
                     setCurrentIndex(idx >= 0 ? idx : 0);
+                    const accs = item.accounts || [];
+                    setSelectedAccount(accs[0] || null);
+                    setSelectedAccountKeys(accs[0] ? new Set([getAccountKey(accs[0])]) : new Set());
+                    setAccountCurrentIndex(0);
+                  } else {
+                    if (selectedTax && getTaxKey(selectedTax) === key) {
+                      if (newIds.size > 0) {
+                        const nextKey = Array.from(newIds)[newIds.size - 1];
+                        const nextTax = salesTaxes.find(c => getTaxKey(c) === nextKey);
+                        if (nextTax) {
+                          setSelectedTax(nextTax);
+                          const idx = salesTaxes.findIndex(c => getTaxKey(c) === nextKey);
+                          setCurrentIndex(idx >= 0 ? idx : 0);
+                          const accs = nextTax.accounts || [];
+                          setSelectedAccount(accs[0] || null);
+                          setSelectedAccountKeys(accs[0] ? new Set([getAccountKey(accs[0])]) : new Set());
+                          setAccountCurrentIndex(0);
+                        }
+                      }
+                    }
                   }
                 }}
                 onFieldChange={handleFieldChange}
-                rowKey="tempId"
+                rowKey="uniqueKey"
               />
             </div>
           ) : (
             <div className="space-y-4">
-              <FormSection>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+              <FormSection title="Tax Identification">
+                <div className="flex flex-wrap items-start gap-4">
                   <FormInput
                     label="Tax Code"
                     required
                     readOnly={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
                     value={selectedTax?.taxCode || ""}
                     onChange={(e) => handleInputChange("taxCode", e.target.value.toUpperCase().slice(0, 6))}
+                    className="w-full sm:w-[200px]"
                   />
                   <FormInput
                     label="Description"
@@ -1347,147 +1717,155 @@ export const ManageSalesTaxes = () => {
                     readOnly={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
                     value={selectedTax?.description || ""}
                     onChange={(e) => handleInputChange("description", e.target.value)}
+                    className="w-full sm:w-[360px]"
                   />
                 </div>
               </FormSection>
 
               <FormSection title="Detail">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* State / Province & State Name */}
-                  <div className="flex gap-2 items-end">
-                    <SearchableCombobox
-                      label="State/Province"
-                      required
-                      disabled={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
-                      readOnly={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
-                      value={selectedTax?.stateProvince || ""}
-                      options={stateOptions}
-                      onChange={(val) => {
-                        const matched = statesMaster.find(s => s.stateCode.toLowerCase() === val.trim().toLowerCase());
-                        if (matched) {
-                          updateSelectedTax({
-                            stateProvince: matched.stateCode,
-                            stateName: matched.stateName || selectedTax?.stateName || "",
-                            country: matched.countryCode || selectedTax?.country || "",
-                            countryName: resolveCountryName(matched),
-                            isDirty: true
-                          });
-                        } else {
-                          handleInputChange("stateProvince", val.toUpperCase(), getTaxKey(selectedTax));
-                        }
-                      }}
-                      onSelect={(opt) => {
-                        const s = opt.data;
-                        if (s) {
-                          updateSelectedTax({
-                            stateProvince: s.stateCode || opt.value,
-                            stateName: s.stateName || selectedTax?.stateName || "",
-                            country: s.countryCode || selectedTax?.country || "",
-                            countryName: resolveCountryName(s),
-                            isDirty: true
-                          });
-                        }
-                      }}
-                      placeholder="Select State"
-                    />
-                    <FormInput
-                      label="State Name"
-                      required
-                      readOnly
-                      value={selectedTax?.stateName || ""}
-                      onChange={(e) => handleInputChange("stateName", e.target.value)}
-                    />
+                <div className="space-y-4">
+                  {/* State/Province & State Name alongside Country & Country Name on the same line */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Left: State / Province & State Name */}
+                    <div className="flex gap-2 items-end">
+                      <SearchableCombobox
+                        label="State/Province"
+                        required
+                        disabled={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
+                        readOnly={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
+                        value={selectedTax?.stateProvince || ""}
+                        options={stateOptions}
+                        onChange={(val) => {
+                          const matched = statesMaster.find(s => s.stateCode.toLowerCase() === val.trim().toLowerCase());
+                          if (matched) {
+                            updateSelectedTax({
+                              stateProvince: matched.stateCode,
+                              stateName: matched.stateName || selectedTax?.stateName || "",
+                              country: matched.countryCode || selectedTax?.country || "",
+                              countryName: resolveCountryName(matched),
+                              isDirty: true
+                            });
+                          } else {
+                            handleInputChange("stateProvince", val.toUpperCase(), getTaxKey(selectedTax));
+                          }
+                        }}
+                        onSelect={(opt) => {
+                          const s = opt.data;
+                          if (s) {
+                            updateSelectedTax({
+                              stateProvince: s.stateCode || opt.value,
+                              stateName: s.stateName || selectedTax?.stateName || "",
+                              country: s.countryCode || selectedTax?.country || "",
+                              countryName: resolveCountryName(s),
+                              isDirty: true
+                            });
+                          }
+                        }}
+                        placeholder="Select State"
+                        className="w-1/3 min-w-[120px]"
+                      />
+                      <FormInput
+                        label="State Name"
+                        required
+                        readOnly
+                        value={selectedTax?.stateName || ""}
+                        onChange={(e) => handleInputChange("stateName", e.target.value)}
+                        className="w-2/3"
+                      />
+                    </div>
+
+                    {/* Right: Country & Country Name */}
+                    <div className="flex gap-2 items-end">
+                      <SearchableCombobox
+                        label="Country"
+                        required
+                        disabled={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
+                        readOnly={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
+                        value={selectedTax?.country || ""}
+                        options={countryOptions}
+                        onChange={(val) => {
+                          const matched = countryOptions.find(c => c.value.toLowerCase() === val.trim().toLowerCase());
+                          checkStateCountryMatch(selectedTax?.stateProvince, val);
+                          if (matched) {
+                            updateSelectedTax({
+                              country: matched.value,
+                              countryName: matched.subLabel || selectedTax?.countryName || "",
+                              isDirty: true
+                            });
+                          } else {
+                            handleInputChange("country", val.toUpperCase());
+                          }
+                        }}
+                        onSelect={(opt) => {
+                          const c = opt.data;
+                          if (c) {
+                            checkStateCountryMatch(selectedTax?.stateProvince, c.countryCode || opt.value);
+                            updateSelectedTax({
+                              country: c.countryCode || opt.value,
+                              countryName: c.countryName || selectedTax?.countryName || "",
+                              isDirty: true
+                            });
+                          }
+                        }}
+                        placeholder="Select Country"
+                        className="w-1/3 min-w-[120px]"
+                      />
+                      <FormInput
+                        label="Country Name"
+                        required
+                        readOnly
+                        value={selectedTax?.countryName || ""}
+                        onChange={(e) => handleInputChange("countryName", e.target.value)}
+                        className="w-2/3"
+                      />
+                    </div>
                   </div>
 
-                  {/* Country & Country Name */}
-                  <div className="flex gap-2 items-end">
-                    <SearchableCombobox
-                      label="Country"
-                      required
-                      disabled={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
-                      readOnly={selectedTax && !selectedTax.isNew && !selectedTax.tempId}
-                      value={selectedTax?.country || ""}
-                      options={countryOptions}
-                      onChange={(val) => {
-                        const matched = countryOptions.find(c => c.value.toLowerCase() === val.trim().toLowerCase());
-                        checkStateCountryMatch(selectedTax?.stateProvince, val);
-                        if (matched) {
-                          updateSelectedTax({
-                            country: matched.value,
-                            countryName: matched.subLabel || selectedTax?.countryName || "",
-                            isDirty: true
-                          });
-                        } else {
-                          handleInputChange("country", val.toUpperCase());
-                        }
-                      }}
-                      onSelect={(opt) => {
-                        const c = opt.data;
-                        if (c) {
-                          checkStateCountryMatch(selectedTax?.stateProvince, c.countryCode || opt.value);
-                          updateSelectedTax({
-                            country: c.countryCode || opt.value,
-                            countryName: c.countryName || selectedTax?.countryName || "",
-                            isDirty: true
-                          });
-                        }
-                      }}
-                      placeholder="Select Country"
-                    />
+                  <div>
                     <FormInput
-                      label="Country Name"
-                      required
-                      readOnly
-                      value={selectedTax?.countryName || ""}
-                      onChange={(e) => handleInputChange("countryName", e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <FormInput
-                    label="Requires VAT/Customs Info"
-                    type="checkbox"
-                    checked={!!selectedTax?.requiresVatInfo}
-                    onChange={(e) => handleInputChange("requiresVatInfo", e.target.checked)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                  <div className="space-y-2">
-                    <FormInput
-                      label="Composite Tax Rate"
-                      value={selectedTax?.compositeTaxRate || ""}
-                      onChange={(e) => handleInputChange("compositeTaxRate", e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <FormInput
-                      label="Recovery Percent"
-                      value={selectedTax?.recoveryPercent || ""}
-                      onChange={(e) => handleInputChange("recoveryPercent", e.target.value)}
-                    />
-                    <FormInput
-                      label="Recovery Percent Override"
-                      value={selectedTax?.recoveryPercentOverride || ""}
-                      onChange={(e) => handleInputChange("recoveryPercentOverride", e.target.value)}
-                    />
-                  </div>
-
-                  <div className="border border-slate-200 rounded p-2.5 bg-slate-50/30">
-                    <span className="text-[10px] font-bold text-slate-500 block mb-1">Exempt from Tax</span>
-                    <FormInput
-                      label="Exempt"
+                      label="Requires VAT/Customs Info"
                       type="checkbox"
-                      checked={!!selectedTax?.exempt}
-                      onChange={(e) => handleInputChange("exempt", e.target.checked)}
+                      checked={!!selectedTax?.requiresVatInfo}
+                      onChange={(e) => handleInputChange("requiresVatInfo", e.target.checked)}
                     />
-                    <FormInput
-                      label="Certificate No"
-                      value={selectedTax?.certificateNo || ""}
-                      onChange={(e) => handleInputChange("certificateNo", e.target.value)}
-                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                    <div className="space-y-2">
+                      <FormInput
+                        label="Composite Tax Rate"
+                        value={selectedTax?.compositeTaxRate || ""}
+                        onChange={(e) => handleInputChange("compositeTaxRate", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <FormInput
+                        label="Recovery Percent"
+                        value={selectedTax?.recoveryPercent || ""}
+                        onChange={(e) => handleInputChange("recoveryPercent", e.target.value)}
+                      />
+                      <FormInput
+                        label="Recovery Percent Override"
+                        value={selectedTax?.recoveryPercentOverride || ""}
+                        onChange={(e) => handleInputChange("recoveryPercentOverride", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="border border-[#e5e7eb] rounded-lg p-3 bg-white space-y-2">
+                      <span className="text-[11px] font-semibold text-[#5f6368] block">Exempt from Tax</span>
+                      <FormInput
+                        label="Exempt"
+                        type="checkbox"
+                        checked={!!selectedTax?.exempt}
+                        onChange={(e) => handleInputChange("exempt", e.target.checked)}
+                      />
+                      <FormInput
+                        label="Certificate No"
+                        value={selectedTax?.certificateNo || ""}
+                        onChange={(e) => handleInputChange("certificateNo", e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
               </FormSection>
@@ -1497,15 +1875,20 @@ export const ManageSalesTaxes = () => {
       </MainContainer>
 
       {/* LEVEL 2: SALES TAX ACCOUNTS */}
-      <SecondaryContainer title="Sales Tax Accounts">
-          <Toolbar
+      <SecondaryContainer
+        title="Sales Tax Accounts"
+        className="mt-3 shadow-sm bg-white border border-slate-200/80 rounded-xl"
+      >
+          <SalesTaxToolbar
             isFormView={isAccountFormView}
             handleNavigate={handleAccountNavigate}
             totalRecords={visibleAccounts.length}
             selectedRow={selectedAccount}
+            selectedCount={selectedAccountKeys.size}
             searchValue={accountSearchValue}
             setSearchValue={setAccountSearchValue}
             loading={loading}
+            clipboard={accountClipboard}
             actions={{
               onAdd: handleAccountAdd,
               onSave: handleSaveAll,
@@ -1516,7 +1899,7 @@ export const ManageSalesTaxes = () => {
               onToggleView: () => {
                 if (!isAccountFormView && !selectedAccount && visibleAccounts.length > 0) {
                   setSelectedAccount(visibleAccounts[0]);
-                  setSelectedAccountKeys(new Set());
+                  setSelectedAccountKeys(new Set([getAccountKey(visibleAccounts[0])]));
                 }
                 setIsAccountFormView(!isAccountFormView);
               }
@@ -1526,7 +1909,7 @@ export const ManageSalesTaxes = () => {
           />
 
           {isAccountFormView && (
-            <div className="flex gap-2 mb-3 max-w-sm select-none mt-2">
+            <div className="flex gap-2 mb-3 max-w-sm select-none mt-2 px-2">
               {["Sales Tax Account", "Recoverable Accounts"].map((tab) => {
                 const isActive = activeSubTab === tab;
                 return (
@@ -1534,10 +1917,10 @@ export const ManageSalesTaxes = () => {
                     key={tab}
                     type="button"
                     onClick={() => setActiveSubTab(tab)}
-                    className={`flex-1 flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-40 transition-colors
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold transition-all duration-150 cursor-pointer text-center
                       ${isActive
-                        ? "border-b-2 bg-[#17414d] text-white font-bold"
-                        : "text-gray-600 hover:text-gray-800 bg-gray-100"
+                        ? "bg-[#1677e8] text-white font-bold"
+                        : "text-[#344a63] hover:bg-[#f5f8fb] bg-white border border-[#d5dfeb]"
                       }`}
                   >
                     {tab}
@@ -1547,7 +1930,7 @@ export const ManageSalesTaxes = () => {
             </div>
           )}
 
-          <div className="mt-2 text-xs">
+          <div className="mt-1.5 text-xs">
             {!isAccountFormView ? (
               <div className="bg-white border border-gray-200 p-2">
                 <ReusableTable
@@ -1595,10 +1978,22 @@ export const ManageSalesTaxes = () => {
                       setSelectedAccount(item);
                       const idx = enrichedVisibleAccounts.findIndex(a => getAccountKey(a) === key);
                       setAccountCurrentIndex(idx >= 0 ? idx : 0);
+                    } else {
+                      if (selectedAccount && getAccountKey(selectedAccount) === key) {
+                        if (newIds.size > 0) {
+                          const nextKey = Array.from(newIds)[newIds.size - 1];
+                          const nextAcc = enrichedVisibleAccounts.find(a => getAccountKey(a) === nextKey);
+                          if (nextAcc) {
+                            setSelectedAccount(nextAcc);
+                            const idx = enrichedVisibleAccounts.findIndex(a => getAccountKey(a) === nextKey);
+                            setAccountCurrentIndex(idx >= 0 ? idx : 0);
+                          }
+                        }
+                      }
                     }
                   }}
                   onFieldChange={(rowId, field, value) => handleAccountInputChange(field, value, rowId)}
-                  rowKey="accountKey"
+                  rowKey="uniqueKey"
                   renderEmptyState={() => (
                     <div className="text-center text-gray-400 text-[11px] py-4 italic">
                       No accounts configured for the active tab.
@@ -1609,102 +2004,142 @@ export const ManageSalesTaxes = () => {
             ) : (
               <div>
                 {activeSubTab === "Sales Tax Account" ? (
-                  <FormSection>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Column 1 */}
-                      <div className="space-y-1.5">
-                        {(selectedAccount && !selectedAccount.isNew && !selectedAccount.tempId) ? (
+                  <FormSection title="Account Setup">
+                    <div className="space-y-3">
+                      {/* Row 1: Account / Account Name alongside Compound */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                        <div className="flex gap-2 items-end">
+                          {(selectedAccount && !selectedAccount.isNew && !selectedAccount.tempId) ? (
+                            <FormInput
+                              label="Account"
+                              required
+                              readOnly
+                              disabled
+                              value={selectedAccount?.account || ""}
+                              className="w-1/3 min-w-[120px]"
+                            />
+                          ) : (
+                            <SearchableCombobox
+                              label="Account"
+                              required
+                              value={selectedAccount?.account || ""}
+                              options={allAccountOptions}
+                              onChange={(val) => handleAccountInputChange("account", val, getAccountKey(selectedAccount))}
+                              placeholder="Select Account"
+                              className="w-1/3 min-w-[120px]"
+                            />
+                          )}
                           <FormInput
-                            label="Account"
-                            required
+                            label="Account Name"
                             readOnly
-                            disabled
-                            value={selectedAccount?.account || ""}
+                            value={resolvedSelectedAccountDesc}
+                            className="w-2/3"
                           />
-                        ) : (
-                          <SearchableCombobox
-                            label="Account"
-                            required
-                            value={selectedAccount?.account || ""}
-                            options={allAccountOptions}
-                            onChange={(val) => handleAccountInputChange("account", val, getAccountKey(selectedAccount))}
-                            placeholder="Select Account"
-                          />
-                        )}
-                        <FormInput
-                          label="Account Name"
-                          readOnly
-                          value={resolvedSelectedAccountDesc}
-                        />
-                        {(selectedAccount && !selectedAccount.isNew && !selectedAccount.tempId) ? (
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-medium text-[#5f6368] select-none">
+                            Compound
+                          </label>
+                          <div className="flex items-center gap-4 h-8">
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[12px] text-[#3c4043]">
+                              <input
+                                type="radio"
+                                name={`compoundTax_${getAccountKey(selectedAccount)}`}
+                                checked={!!selectedAccount?.compoundTax}
+                                onChange={() => handleAccountInputChange("compoundTax", true, getAccountKey(selectedAccount))}
+                                className="w-3.5 h-3.5 text-[#1677e8] focus:ring-0 cursor-pointer"
+                              />
+                              <span>Yes</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[12px] text-[#3c4043]">
+                              <input
+                                type="radio"
+                                name={`compoundTax_${getAccountKey(selectedAccount)}`}
+                                checked={!selectedAccount?.compoundTax}
+                                onChange={() => handleAccountInputChange("compoundTax", false, getAccountKey(selectedAccount))}
+                                className="w-3.5 h-3.5 text-[#1677e8] focus:ring-0 cursor-pointer"
+                              />
+                              <span>No</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Organization / Organization Name alongside Effective Tax Rate */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                        <div className="flex gap-2 items-end">
+                          {(selectedAccount && !selectedAccount.isNew && !selectedAccount.tempId) ? (
+                            <FormInput
+                              label="Organization"
+                              required
+                              readOnly
+                              disabled
+                              value={selectedAccount?.organization || ""}
+                              className="w-1/3 min-w-[120px]"
+                            />
+                          ) : (
+                            <SearchableCombobox
+                              label="Organization"
+                              required
+                              value={selectedAccount?.organization || ""}
+                              options={allOrgOptions}
+                              onChange={(val) => handleAccountInputChange("organization", val, getAccountKey(selectedAccount))}
+                              placeholder="Select Organization"
+                              className="w-1/3 min-w-[120px]"
+                            />
+                          )}
                           <FormInput
-                            label="Organization"
-                            required
+                            label="Organization Name"
                             readOnly
-                            disabled
-                            value={selectedAccount?.organization || ""}
+                            value={resolvedSelectedOrgDesc}
+                            className="w-2/3"
                           />
-                        ) : (
-                          <SearchableCombobox
-                            label="Organization"
-                            required
-                            value={selectedAccount?.organization || ""}
-                            options={allOrgOptions}
-                            onChange={(val) => handleAccountInputChange("organization", val, getAccountKey(selectedAccount))}
-                            placeholder="Select Organization"
+                        </div>
+
+                        <div>
+                          <FormInput
+                            label="Effective Tax Rate"
+                            value={selectedAccount?.effectiveTaxRate ?? selectedAccount?.taxRate ?? ""}
+                            onChange={(e) => handleAccountInputChange("effectiveTaxRate", e.target.value, getAccountKey(selectedAccount))}
                           />
-                        )}
-                        <FormInput
-                          label="Organization Name"
-                          readOnly
-                          value={resolvedSelectedOrgDesc}
-                        />
-                        <div className="flex flex-col gap-1 w-full">
-                          <span className="text-[11px] font-semibold text-slate-700 select-none">Tax Type *</span>
-                          <div className="relative w-full">
+                        </div>
+                      </div>
+
+                      {/* Row 3: Tax Type & Tax Rate alongside Recoverable */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                        <div className="flex gap-2 items-end">
+                          <div className="flex flex-col gap-1 w-1/2">
+                            <label className="text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap">
+                              <span>Tax Type</span>
+                              <span className="text-blue-600 font-bold ml-0.5">*</span>
+                            </label>
                             <select
                               value={selectedAccount?.taxType || "SALES/USE"}
                               disabled={selectedAccount && !selectedAccount.isNew && !selectedAccount.tempId}
                               onChange={(e) => handleAccountInputChange("taxType", e.target.value, getAccountKey(selectedAccount))}
-                              className={`w-full px-2 py-0.5 pr-6 rounded border text-[11px] font-medium outline-none ${
+                              className={`w-full h-8 text-[12px] font-normal px-2.5 pr-3 rounded outline-none border-0 shadow-none bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] ${
                                 selectedAccount && !selectedAccount.isNew && !selectedAccount.tempId
-                                  ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
-                                  : "bg-white border-slate-200 text-slate-800 focus:border-slate-400"
+                                  ? "cursor-default"
+                                  : "cursor-pointer"
                               }`}
                             >
                               <option value="SALES/USE">SALES/USE</option>
                               <option value="VAT">VAT</option>
                               <option value="EXEMPT">EXEMPT</option>
                             </select>
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                              <Search size={11} />
-                            </div>
                           </div>
-                        </div>
-                        <FormInput
-                          label="Tax Rate"
-                          required
-                          value={selectedAccount?.taxRate || ""}
-                          onChange={(e) => handleAccountInputChange("taxRate", e.target.value, getAccountKey(selectedAccount))}
-                        />
-                      </div>
 
-                      {/* Column 2 */}
-                      <div className="space-y-1.5 flex flex-col justify-between">
-                        <div className="space-y-1.5">
-                          <div className="pt-2">
-                            <FormInput
-                              label="Compound"
-                              type="checkbox"
-                              checked={!!selectedAccount?.compoundTax}
-                              onChange={(e) => handleAccountInputChange("compoundTax", e.target.checked, getAccountKey(selectedAccount))}
-                            />
-                          </div>
                           <FormInput
-                            label="Effective Tax Rate"
-                            value={selectedAccount?.effectiveTaxRate ?? selectedAccount?.taxRate ?? ""}
-                            onChange={(e) => handleAccountInputChange("effectiveTaxRate", e.target.value, getAccountKey(selectedAccount))}
+                            label="Tax Rate"
+                            required
+                            value={selectedAccount?.taxRate || ""}
+                            onChange={(e) => handleAccountInputChange("taxRate", e.target.value, getAccountKey(selectedAccount))}
+                            className="w-1/2"
                           />
+                        </div>
+
+                        <div>
                           <FormInput
                             label="Recoverable"
                             value={selectedAccount?.recoverable || "N"}
@@ -1715,11 +2150,11 @@ export const ManageSalesTaxes = () => {
                     </div>
                   </FormSection>
                 ) : (
-                  <FormSection>
+                  <FormSection title="Recoverable Setup">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Group 1: Recoverable */}
-                      <div className="border border-slate-200 rounded p-3 bg-slate-50/20 space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-500 block mb-2">Recoverable</span>
+                      <div className="border border-[#e5e7eb] rounded-lg p-3 bg-white space-y-2">
+                        <span className="text-[11px] font-semibold text-[#5f6368] block">Recoverable</span>
                         <SearchableCombobox
                           label="Account"
                           value={selectedAccount?.recAccount || ""}
@@ -1737,8 +2172,8 @@ export const ManageSalesTaxes = () => {
                       </div>
 
                       {/* Group 2: Recoverable Suspense */}
-                      <div className="border border-slate-200 rounded p-3 bg-slate-50/20 space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-500 block mb-2">Recoverable Suspense</span>
+                      <div className="border border-[#e5e7eb] rounded-lg p-3 bg-white space-y-2">
+                        <span className="text-[11px] font-semibold text-[#5f6368] block">Recoverable Suspense</span>
                         <SearchableCombobox
                           label="Account"
                           value={selectedAccount?.suspenseAccount || ""}

@@ -1,24 +1,250 @@
 import React, { useEffect, useState } from "react";
+import {
+  Globe,
+  Search,
+  Plus,
+  Copy,
+  ClipboardPaste,
+  Trash2,
+  X,
+  Save,
+  LayoutGrid,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { backendUrl } from "./config";
 import api from "../utils/api";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { MainContainer, Toolbar, SecondaryContainer } from "../helper/container";
+import { MainContainer, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
 
-// Custom components to ensure matching styling, font size, background color with ManageAccountsPayableVouchers
-const FormSection = ({ title, children, className = "" }) => {
+const FormSection = ({ title, children, className = "", headerRight }) => (
+  <div className={`bg-white border border-[#e5e7eb] rounded-lg shadow-xs overflow-hidden ${className}`}>
+    {title && (
+      <div className="px-3.5 py-2 bg-white border-b border-[#eeeeee] flex items-center justify-between">
+        <h3 className="text-[12px] font-semibold text-[#3c4043] tracking-normal select-none">
+          {title}
+        </h3>
+        {headerRight && <div>{headerRight}</div>}
+      </div>
+    )}
+    <div className="p-3.5">{children}</div>
+  </div>
+);
+
+const ManageCountryIcon = () => (
+  <div className="p-1 bg-[#f0f4f9] border border-[#d5dfeb] rounded-md shadow-2xs -mr-2 flex items-center justify-center">
+    <Globe size={16} className="text-[#344a63]" />
+  </div>
+);
+
+const CountryToolbar = ({
+  isFormView,
+  currentIndex = 0,
+  totalRecords = 0,
+  handleNavigate,
+  jumpToCode,
+  searchValue = "",
+  setSearchValue,
+  loading = false,
+  actions = {},
+  buttonsDisable = [],
+  clipboard = [],
+  selectedRow = null,
+  selectedCount = 0,
+}) => {
+  const { onAdd, onCopy, onPaste, onClear, onDelete, onSave, onToggleView } = actions;
+  const hasSelection = isFormView ? (!!selectedRow && totalRecords > 0) : (selectedCount > 0);
+  const isCopyDisabled = loading || !hasSelection;
+  const isDeleteDisabled = loading || !hasSelection;
+  const isPasteDisabled = loading || !clipboard || clipboard.length === 0;
+
   return (
-    <div className={`relative rounded border border-slate-200 bg-white py-3 px-3 shadow-none ${className}`}>
-      {title && (
-        <div className="flex items-center gap-2 pb-1.5 mb-2.5 border-b border-slate-200 select-none">
-          <span className="text-xs font-bold text-gray-700">
-            {title}
-          </span>
-        </div>
-      )}
-      <div className="space-y-1.5">
-        {children}
+    <div className="flex items-center justify-between gap-2 pb-2 px-2 flex-wrap">
+      {/* LEFT SECTION: Search & Navigation */}
+      <div className="flex items-center gap-3">
+        {setSearchValue && (
+          <div className="relative group">
+            <Search
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-[#1677e8] transition-colors"
+              size={14}
+              onClick={() => {
+                if (searchValue && jumpToCode) {
+                  jumpToCode(searchValue);
+                  setSearchValue("");
+                }
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="pl-8 pr-2.5 h-8 w-40 text-[11px] bg-[#f6f6f6] border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:bg-white focus:border-[#1677e8] transition-all"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && jumpToCode) {
+                  jumpToCode(searchValue);
+                  setSearchValue("");
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {isFormView && handleNavigate && (
+          <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
+            {/* First */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="First record"
+              disabled={currentIndex <= 0 || loading}
+              onClick={() => handleNavigate("start")}
+            >
+              <ChevronsLeft size={16} strokeWidth={1.5} />
+            </button>
+
+            {/* Previous */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="Previous record"
+              disabled={currentIndex <= 0 || loading}
+              onClick={() => handleNavigate("prev")}
+            >
+              <ChevronLeft size={16} strokeWidth={1.5} />
+            </button>
+
+            {/* Count */}
+            <span className="voucher-count">
+              {totalRecords > 0 ? currentIndex + 1 : 0} / {totalRecords}
+            </span>
+
+            {/* Next */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="Next record"
+              disabled={currentIndex >= totalRecords - 1 || loading}
+              onClick={() => handleNavigate("next")}
+            >
+              <ChevronRight size={16} strokeWidth={1.5} />
+            </button>
+
+            {/* Last */}
+            <button
+              type="button"
+              className="voucher-nav-btn"
+              title="Last record"
+              disabled={currentIndex >= totalRecords - 1 || loading}
+              onClick={() => handleNavigate("end")}
+            >
+              <ChevronsRight size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT SECTION: Action Buttons */}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        {!buttonsDisable.includes("add") && onAdd && (
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={loading}
+            className="voucher-primary-btn"
+          >
+            <Plus size={14} /> Create
+          </button>
+        )}
+
+        {!buttonsDisable.includes("copy") && onCopy && (
+          <button
+            type="button"
+            onClick={onCopy}
+            disabled={isCopyDisabled}
+            className="voucher-head-btn"
+          >
+            <Copy size={14} /> Copy
+          </button>
+        )}
+
+        {!buttonsDisable.includes("paste") && onPaste && (
+          <button
+            type="button"
+            onClick={onPaste}
+            disabled={isPasteDisabled}
+            className="voucher-head-btn"
+          >
+            <ClipboardPaste size={14} /> Paste
+          </button>
+        )}
+
+        {!buttonsDisable.includes("delete") && onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleteDisabled}
+            className="voucher-head-btn"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+        )}
+
+        {!buttonsDisable.includes("discard") && onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={loading}
+            className="voucher-head-btn"
+          >
+            Cancel
+          </button>
+        )}
+
+        {!buttonsDisable.includes("save") && onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={loading}
+            className="voucher-head-btn"
+          >
+            <Save size={14} /> Save
+          </button>
+        )}
+
+        {!buttonsDisable.includes("tableform") && onToggleView && (
+          <button
+            type="button"
+            onClick={onToggleView}
+            disabled={loading}
+            className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50"
+          >
+            <span
+              className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                isFormView ? "left-[3px]" : "left-[41px]"
+              }`}
+            />
+            <span
+              className={`relative z-10 flex w-1/2 items-center justify-center text-[10px] font-semibold ${
+                isFormView ? "text-[#1677e8]" : "text-[#7b8798]"
+              }`}
+            >
+              Form
+            </span>
+            <span
+              className={`relative z-10 flex w-1/2 items-center justify-center text-[10px] font-semibold ${
+                !isFormView ? "text-[#1677e8]" : "text-[#7b8798]"
+              }`}
+            >
+              Table
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -35,38 +261,102 @@ const FormInput = ({
   readOnly,
   disabled,
   className = "",
-  placeholder,
+  placeholder = "",
   horizontal,
   inputClassName = "",
+  labelClassName = "",
+  helperText = "",
+  icon: Icon,
+  onIconClick,
 }) => {
-  const isClickable = type === "checkbox" || type === "radio";
+  const [radioName] = useState(() => `radio-${label ? String(label).replace(/[^a-zA-Z0-9]/g, "") : "field"}-${Math.random().toString(36).substr(2, 9)}`);
+
+  let containerClassName = className;
+  if (type === "checkbox") {
+    containerClassName = className
+      .replace(/\bw-\[[^\]]+\]/g, "")
+      .replace(/\bw-\d+/g, "") + " w-auto min-w-fit flex-shrink-0";
+  }
+
+  if (type === "checkbox") {
+    const isChecked = checked === true || checked === "Y";
+    return (
+      <div className={`flex items-center gap-2.5 py-1 ${containerClassName}`}>
+        {label && (
+          <label className={`text-[11px] font-medium text-[#5f6368] select-none shrink-0 ${labelClassName || "min-w-[120px]"}`}>
+            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+          </label>
+        )}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
+            <input
+              type="radio"
+              name={radioName}
+              checked={isChecked}
+              onChange={() => {
+                if (onChange && !disabled) {
+                  onChange({ target: { checked: true, value: "Y" } });
+                }
+              }}
+              disabled={disabled}
+              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+            />
+            Yes
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
+            <input
+              type="radio"
+              name={radioName}
+              checked={!isChecked}
+              onChange={() => {
+                if (onChange && !disabled) {
+                  onChange({ target: { checked: false, value: "N" } });
+                }
+              }}
+              disabled={disabled}
+              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+            />
+            No
+          </label>
+        </div>
+        {helperText && (
+          <p className="text-[10px] text-slate-400 pl-2 leading-tight select-none">{helperText}</p>
+        )}
+      </div>
+    );
+  }
+
+  const isClickable = type === "radio";
 
   if (isClickable) {
     return (
-      <div className="w-full flex items-center pt-0.5 pb-0.5">
-        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
-          <input
-            type={type}
-            checked={checked}
-            onChange={onChange}
-            disabled={disabled}
-            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
-          />
-          <span className="text-[11px] font-semibold text-slate-700">{label}</span>
-        </label>
+      <div className={`flex items-center gap-2 py-1 ${className}`}>
+        <input
+          type={type}
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          className="w-4 h-4 rounded-full border-slate-300 text-slate-900 cursor-pointer accent-blue-600"
+        />
+        {label && (
+          <label className={`text-[11px] font-medium text-[#5f6368] cursor-pointer select-none ${labelClassName}`}>
+            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+          </label>
+        )}
       </div>
     );
   }
 
   if (horizontal) {
     return (
-      <div className={`flex items-center justify-between gap-4 w-full ${className}`}>
+      <div className={`flex items-center gap-3 py-0.5 ${className}`}>
         {label && (
-          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
-            {label} {required && <span>*</span>}
-          </span>
+          <label className={`text-[11px] font-medium text-[#5f6368] min-w-[110px] text-left select-none flex items-center gap-0.5 ${labelClassName}`}>
+            <span>{label}</span>
+            {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
+          </label>
         )}
-        <div className="w-3/5">
+        <div className="relative flex-1 min-w-0 flex items-center">
           <input
             type={type}
             value={value ?? ""}
@@ -75,38 +365,64 @@ const FormInput = ({
             readOnly={readOnly}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
-              ${readOnly || disabled 
-                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
-                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
-              }`}
+            className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
+              Icon ? "pr-8" : ""
+            } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
+              readOnly || disabled ? "cursor-default select-text" : "cursor-text"
+            }`}
           />
+          {Icon && (
+            <div
+              onClick={onIconClick}
+              className={`absolute right-2.5 flex items-center justify-center text-slate-400 ${
+                onIconClick ? "cursor-pointer hover:text-slate-600" : "pointer-events-none"
+              }`}
+            >
+              <Icon size={14} />
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex flex-col gap-1 w-full ${className}`}>
+    <div className={`flex flex-col gap-1 w-full min-w-0 ${className}`}>
       {label && (
-        <span className="text-xs font-semibold text-slate-700 select-none">
-          {label} {required && <span>*</span>}
-        </span>
+        <label className={`text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap ${labelClassName}`}>
+          <span>{label}</span>
+          {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
+        </label>
       )}
-      <input
-        type={type}
-        value={value ?? ""}
-        onChange={onChange}
-        onBlur={onBlur}
-        readOnly={readOnly}
-        disabled={disabled}
-        placeholder={placeholder}
-        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
-          ${readOnly || disabled 
-            ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed" 
-            : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+      <div className="relative w-full flex items-center">
+        <input
+          type={type}
+          value={value ?? ""}
+          onChange={onChange}
+          onBlur={onBlur}
+          readOnly={readOnly}
+          disabled={disabled}
+          placeholder={placeholder}
+          className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
+            Icon ? "pr-8" : ""
+          } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
+            readOnly || disabled ? "cursor-default select-text" : "cursor-text"
           }`}
-      />
+        />
+        {Icon && (
+          <div
+            onClick={onIconClick}
+            className={`absolute right-2.5 flex items-center justify-center text-slate-400 ${
+              onIconClick ? "cursor-pointer hover:text-slate-600" : "pointer-events-none"
+            }`}
+          >
+            <Icon size={14} />
+          </div>
+        )}
+      </div>
+      {helperText && (
+        <span className="text-[10px] text-slate-400 select-none">{helperText}</span>
+      )}
     </div>
   );
 };
@@ -1201,8 +1517,19 @@ const ManageCountry = () => {
     .flatMap(s => s.postalCodes || []);
 
   return (
-    <div className="mt-14 ml-4 font-inter text-[#17414d] space-y-4">
+    <div className="country-page p-4 space-y-4 font-inter text-[#1f2937]">
       <style>{`
+        .country-page { font-size:12px; color:#1f2937; }
+        .country-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .country-page .voucher-head-btn:hover:not(:disabled) { background:#f5f8fb; border-color:#b9c8d8; }
+        .country-page .voucher-head-btn:disabled { opacity:0.4; cursor:not-allowed; }
+        .country-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .country-page .voucher-primary-btn:hover:not(:disabled) { background:#125bc3; border-color:#125bc3; }
+        .country-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; transition:all 0.15s ease; }
+        .country-page .voucher-nav-btn:last-child { border-right:0; }
+        .country-page .voucher-nav-btn:hover:not(:disabled) { background:#eaf1f7; color:#17414d; }
+        .country-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .country-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
         .td-input[readonly] {
           background-color: #f8fafc !important; /* bg-slate-50 style */
           color: #94a3b8 !important;            /* text-slate-400 style */
@@ -1220,17 +1547,20 @@ const ManageCountry = () => {
           border-color: transparent !important;
         }
       `}</style>
+
       {/* LEVEL 1: COUNTRY */}
-      <MainContainer title="Manage Country">
-        <Toolbar
+      <MainContainer title="Manage Country" icon={ManageCountryIcon}>
+        <CountryToolbar
           isFormView={isFormView}
           handleNavigate={handleNavigate}
           jumpToCode={jumpToCode}
           totalRecords={filteredCountries.length}
           selectedRow={selectedCountry}
+          selectedCount={selectedCountryCodes.size}
           searchValue={searchValue}
           setSearchValue={setSearchValue}
           loading={loading}
+          clipboard={clipboard}
           actions={{
             onAdd: handleAdd,
             onSave: handleSaveAll,
@@ -1250,7 +1580,7 @@ const ManageCountry = () => {
           currentIndex={currentIndex}
         />
 
-        <div className="mt-2 text-xs">
+        <div className="mt-1.5 text-xs">
           {!isFormView ? (
             <div className="bg-white border border-gray-200 p-2">
               <ReusableTable
@@ -1327,9 +1657,9 @@ const ManageCountry = () => {
               />
             </div>
           ) : (
-            <div className="space-y-4">
-              <FormSection>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            <div>
+              <FormSection title="Country Details">
+                <div className="flex flex-wrap items-start gap-4">
                   <FormInput
                     label="Country Code"
                     required
@@ -1342,6 +1672,7 @@ const ManageCountry = () => {
                         getRowKey(selectedCountry)
                       )
                     }
+                    className="w-full sm:w-[200px]"
                   />
                   <FormInput
                     label="Country Name"
@@ -1354,6 +1685,7 @@ const ManageCountry = () => {
                         getRowKey(selectedCountry)
                       )
                     }
+                    className="w-full sm:w-[360px]"
                   />
                 </div>
               </FormSection>
@@ -1366,16 +1698,18 @@ const ManageCountry = () => {
       {selectedCountry && (
         <SecondaryContainer
           title="Manage State"
-          className="mt-4 shadow-sm bg-white border border-slate-200/80 rounded-xl"
+          className="mt-3 shadow-sm bg-white border border-slate-200/80 rounded-xl"
         >
-          <Toolbar
+          <CountryToolbar
             isFormView={isStateFormView}
             handleNavigate={handleStateNavigate}
             totalRecords={selectedCountryCodes.size > 0 ? visibleStates.length : 0}
             selectedRow={selectedCountryCodes.size > 0 ? selectedState : null}
+            selectedCount={selectedStateCodes.size}
             searchValue={stateSearchValue}
             setSearchValue={setStateSearchValue}
             loading={loading || selectedCountryCodes.size === 0}
+            clipboard={stateClipboard}
             actions={{
               onAdd: handleStateAdd,
               onSave: handleSaveAll,
@@ -1397,7 +1731,7 @@ const ManageCountry = () => {
             buttonsDisable={["save"]}
           />
 
-          <div className="mt-2 text-xs">
+          <div className="mt-1.5 text-xs">
             {!isStateFormView ? (
               <div className="bg-white border border-gray-200 p-2">
                 <ReusableTable
@@ -1477,9 +1811,9 @@ const ManageCountry = () => {
                 />
               </div>
             ) : (
-              <div className="space-y-4">
-                <FormSection>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+              <div>
+                <FormSection title="State Details">
+                  <div className="flex flex-wrap items-start gap-4">
                     <FormInput
                       label="State Code"
                       required
@@ -1492,6 +1826,7 @@ const ManageCountry = () => {
                           getStateKey(selectedState)
                         )
                       }
+                      className="w-full sm:w-[200px]"
                     />
                     <FormInput
                       label="State"
@@ -1504,6 +1839,7 @@ const ManageCountry = () => {
                           getStateKey(selectedState)
                         )
                       }
+                      className="w-full sm:w-[360px]"
                     />
                   </div>
                 </FormSection>
@@ -1517,16 +1853,18 @@ const ManageCountry = () => {
       {selectedState && (
         <SecondaryContainer
           title="Postal Code"
-          className="mt-4 shadow-sm bg-white border border-slate-200/80 rounded-xl"
+          className="mt-3 shadow-sm bg-white border border-slate-200/80 rounded-xl"
         >
-          <Toolbar
+          <CountryToolbar
             isFormView={isPostalFormView}
             handleNavigate={handlePostalNavigate}
             totalRecords={selectedStateCodes.size > 0 ? visiblePostalCodes.length : 0}
             selectedRow={selectedStateCodes.size > 0 ? selectedPostal : null}
+            selectedCount={selectedPostalCodes.size}
             searchValue={postalSearchValue}
             setSearchValue={setPostalSearchValue}
             loading={loading || selectedStateCodes.size === 0}
+            clipboard={postalClipboard}
             actions={{
               onAdd: handlePostalAdd,
               onSave: handleSaveAll,
@@ -1548,7 +1886,7 @@ const ManageCountry = () => {
             buttonsDisable={["save"]}
           />
 
-          <div className="mt-2 text-xs">
+          <div className="mt-1.5 text-xs">
             {!isPostalFormView ? (
               <div className="bg-white border border-gray-200 p-2">
                 <ReusableTable
@@ -1612,9 +1950,9 @@ const ManageCountry = () => {
                 />
               </div>
             ) : (
-              <div className="space-y-4">
-                <FormSection>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+              <div>
+                <FormSection title="Postal Code Details">
+                  <div className="flex flex-wrap items-start gap-4">
                     <FormInput
                       label="Postal Code"
                       required
@@ -1627,6 +1965,7 @@ const ManageCountry = () => {
                           getPostalKey(selectedPostal)
                         )
                       }
+                      className="w-full sm:w-[200px]"
                     />
                     <FormInput
                       label="City"
@@ -1638,6 +1977,7 @@ const ManageCountry = () => {
                           getPostalKey(selectedPostal)
                         )
                       }
+                      className="w-full sm:w-[360px]"
                     />
                   </div>
                 </FormSection>
