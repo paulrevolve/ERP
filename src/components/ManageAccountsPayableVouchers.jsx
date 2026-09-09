@@ -9417,7 +9417,7 @@ const masterColumns = [
     label: "Invoice Date",
     type: "date",
   },
-  { id: "invoiceAmount", key: "invoiceAmount", label: "Invoice Amount" },
+  { id: "invoiceAmount", key: "invoiceAmount", label: "Invoice Amount", required: true },
   { id: "dueDate", key: "dueDate", label: "Due Date", type: "date" },
   { id: "dueAmount", key: "dueAmount", label: "Due Amount" },
   { id: "discountPercent", key: "discountPercent", label: "Discount Percent" },

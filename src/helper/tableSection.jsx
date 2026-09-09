@@ -523,6 +523,45 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react"; // Ensure this is imported for your custom select
 
+const renderHeaderLabel = (col) => {
+  if (!col) return null;
+  if (typeof col.label === "string") {
+    const isExplicitRequired = Boolean(col.required);
+    const hasAsterisk = col.label.trim().endsWith("*");
+    const cleanText = hasAsterisk
+      ? col.label.replace(/\s*\*+\s*$/, "")
+      : col.label;
+    const shouldShowAsterisk = isExplicitRequired || hasAsterisk;
+
+    return (
+      <>
+        {cleanText}
+        {shouldShowAsterisk && (
+          <span
+            className="text-blue-600 font-bold ml-0.5 select-none"
+            style={{ color: "#2563eb", fontWeight: "bold" }}
+          >
+            *
+          </span>
+        )}
+      </>
+    );
+  }
+  return (
+    <>
+      {col.label}
+      {col.required && (
+        <span
+          className="text-blue-600 font-bold ml-0.5 select-none"
+          style={{ color: "#2563eb", fontWeight: "bold" }}
+        >
+          *
+        </span>
+      )}
+    </>
+  );
+};
+
 export const ReusableTable = ({
   data,
   columns,
@@ -570,7 +609,7 @@ export const ReusableTable = ({
                 key={idx}
                 className="th-thead bg-[#e5f3fb] text-black text-xs px-2 text-left"
               >
-                {col.label} {col.required && "*"}
+                {renderHeaderLabel(col)}
               </th>
             ))}
           </tr>
@@ -816,11 +855,11 @@ export const TableSearchSelect = ({
   // Filter options based on user typing
   const filteredOptions = options.filter(
     (opt) =>
-      (opt[displayKey] || "")
+      String(opt[displayKey] || "")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       (secondaryKey &&
-        (opt[secondaryKey] || "")
+        String(opt[secondaryKey] || "")
           .toLowerCase()
           .includes(searchTerm.toLowerCase())),
   );
