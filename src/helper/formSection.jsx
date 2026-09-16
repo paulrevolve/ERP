@@ -1,24 +1,6 @@
 import { Search } from "lucide-react";
 import React, { useState } from "react";
 
-/*
- * ============================================================
- * FORM WIDTH CONFIGURATION
- * ============================================================
- * Change these values here instead of searching through the
- * entire file whenever you want to adjust field widths.
- *
- * Tailwind examples:
- *   "w-[160px]"
- *   "w-[180px]"
- *   "w-[200px]"
- */
-const FORM_STYLES = {
-  labelWidth: "w-[90px]", // Fixed label column for all standard fields
-  fieldWidth: "flex-1", // Normal text inputs + search selects
-  compactWidth: "w-[120px]", // Compact inputs + compact search selects
-};
-
 export const FormSection = ({ title, children, className = "" }) => {
   return (
     <div
@@ -39,50 +21,33 @@ export const FormInput = ({
   required,
   type = "text",
   value,
-  checked,
+  checked, // Add checked prop
   onChange,
   readOnly,
   disabled,
   className = "",
   placeholder,
-  labelWidth = null,
-  compact = false,
 }) => {
   const isClickable = type === "checkbox" || type === "radio";
 
   return (
-    <div className="flex items-center gap-2 mt-1 ml-1">
+    <div className="space-x-2 flex items-center m-1">
       {label && (
-        <label
-          style={labelWidth ? { width: labelWidth } : undefined}
-          className={`f-head font-[400] text-[10px] text-black whitespace-nowrap shrink-0 ${
-            labelWidth ? "" : FORM_STYLES.labelWidth
-          }`}
-        >
+        <label className="f-head font-[400] text-[10px] text-black min-w-[90px]">
           {label} {required && "*"}
         </label>
       )}
-
       <input
         type={type}
+        // FIX: Use 'checked' for clickable inputs, 'value' for others
         {...(isClickable ? { checked: checked } : { value: value })}
         onChange={onChange}
         readOnly={readOnly}
         disabled={disabled}
         placeholder={placeholder}
-        className={`border outline-none p-0.5 rounded font-light text-[10px] transition-all
-          ${
-            isClickable
-              ? "w-3 h-3 cursor-pointer accent-blue-500"
-              : compact
-                ? `${FORM_STYLES.compactWidth} border-gray-300`
-                : `${FORM_STYLES.fieldWidth} border-gray-300`
-          }
-          ${
-            readOnly || disabled
-              ? "bg-gray-100 cursor-not-allowed text-gray-400"
-              : "bg-white focus:border-[#17414d]"
-          }
+        className={`border outline-none p-0.5 rounded font-light text-[10px] transition-all 
+          ${isClickable ? "w-3 h-3 cursor-pointer accent-blue-500" : "flex-1 border-gray-300"} 
+          ${readOnly || disabled ? "bg-gray-100 cursor-not-allowed text-gray-400" : "bg-white focus:border-[#17414d]"} 
           ${className}`}
       />
     </div>
@@ -92,39 +57,39 @@ export const FormInput = ({
 export const FormSearchSelect = ({
   label,
   value,
+  // searchTerm = "",
+  // setSearchTerm,
   options,
   onSelect,
   displayKey,
   secondaryKey,
   disabled,
   placeholder = "",
-  labelWidth = null,
-  compact = false,
-  className = "",
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
 
   const selectedOption = options?.find((opt) => {
     const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey]];
-
     return candidateKeys.some((key) => String(key) === String(value));
   });
 
   const filteredOptions = (options || []).filter((opt) => {
     const search = searchTerm.toLowerCase().trim();
 
+    // If no search term, show all options
     if (!search) return true;
 
     const mainValue = String(opt[displayKey] || "").toLowerCase();
-
     const subValue = secondaryKey
       ? String(opt[secondaryKey] || "").toLowerCase()
       : "";
 
     return mainValue.includes(search) || subValue.includes(search);
   });
+
+  const [isTyping, setIsTyping] = useState(false);
 
   const inputValue = isTyping
     ? searchTerm
@@ -133,33 +98,20 @@ export const FormSearchSelect = ({
       : searchTerm || value || "";
 
   return (
-    <div className="flex items-center gap-2 mt-1 ml-1">
+    <div className="space-x-4 flex items-center relative">
       {label && (
-        <label
-          style={labelWidth ? { width: labelWidth } : undefined}
-          className={`f-head font-[400] text-[10px] text-black whitespace-nowrap shrink-0 ${
-            labelWidth ? "" : FORM_STYLES.labelWidth
-          }`}
-        >
+        <label className="f-head font-[400] text-[10px] text-black min-w-[90px] whitespace-nowrap">
           {label}
         </label>
       )}
 
-      <div
-        className={`relative ${
-          compact ? FORM_STYLES.compactWidth : FORM_STYLES.fieldWidth
-        } ${className}`}
-      >
+      <div className="relative flex-1">
         <div className="relative group flex items-center">
           <input
             type="text"
             disabled={disabled}
-            className={`border outline-none w-full border-gray-300 pl-2 pr-8 py-0.5 rounded text-[10px]
-              ${
-                disabled
-                  ? "bg-gray-100 cursor-not-allowed"
-                  : "bg-white focus:border-[#17414d]"
-              }`}
+            className={`border outline-none w-full border-gray-300 pl-2 pr-8 py-0.5 rounded text-[10px] 
+              ${disabled ? "bg-gray-100 cursor-not-allowed" : "bg-white focus:border-[#17414d]"}`}
             value={inputValue}
             placeholder={placeholder}
             onChange={(e) => {
@@ -168,11 +120,11 @@ export const FormSearchSelect = ({
               setShowDropdown(true);
             }}
             onBlur={() => {
+              // Optional: Reset typing state when clicking away
               setIsTyping(false);
             }}
             onFocus={() => !disabled && setShowDropdown(true)}
           />
-
           <div
             className="absolute right-0 px-2.5 cursor-pointer text-gray-400"
             onClick={() => !disabled && setShowDropdown(!showDropdown)}
@@ -193,13 +145,11 @@ export const FormSearchSelect = ({
                       onSelect(opt);
                       setSearchTerm("");
                       setShowDropdown(false);
-                      setIsTyping(false);
                     }}
                   >
                     <span className="font-[400] text-black">
                       {opt[displayKey]}
                     </span>
-
                     {secondaryKey && opt[secondaryKey] && (
                       <span className="text-gray-400 ml-2">
                         ({opt[secondaryKey]})
@@ -213,7 +163,6 @@ export const FormSearchSelect = ({
                 </div>
               )}
             </div>
-
             <div
               className="fixed inset-0 z-[90]"
               onClick={() => setShowDropdown(false)}
@@ -268,7 +217,6 @@ export const FormSearchSelectInline = ({
   onSelect,
   displayKey,
   disabled,
-  className = "",
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
@@ -278,7 +226,7 @@ export const FormSearchSelectInline = ({
   );
 
   return (
-    <div className={`relative w-full ${className}`}>
+    <div className="relative w-full">
       <div className="relative flex items-center">
         <input
           type="text"

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { backendUrl } from "./config";
 import { toast } from "react-toastify";
 import api from "../utils/api";
@@ -14,8 +14,17 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Replace,
+  RotateCcw,
+  Check,
+  X,
 } from "lucide-react";
 import ReusableTable from "../helper/tableSection";
+import { useDraftStore } from "../store/useDraftStore";
 
 const FormSection = ({ title, children, className = "" }) => {
   return (
@@ -40,6 +49,9 @@ const FormInput = ({
   checked,
   onChange,
   onBlur,
+  onKeyDown,
+  min,
+  max,
   readOnly,
   disabled,
   className = "",
@@ -51,14 +63,17 @@ const FormInput = ({
 
   if (isClickable) {
     return (
-      <div className="w-full flex items-center pt-0.5 pb-0.5">
-        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
+      <div className={`flex flex-col gap-1 w-full ${className}`}>
+        <span className="text-xs font-semibold text-slate-700 select-none invisible">
+          &nbsp;
+        </span>
+        <label className="flex items-center gap-2 px-2.5 h-[32px] rounded border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-all duration-150 select-none w-full">
           <input
             type={type}
             checked={checked}
             onChange={onChange}
             disabled={disabled}
-            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
+            className="w-3.5 h-3.5 rounded border-slate-300 text-[#1677e8] focus:ring-[#1677e8] cursor-pointer disabled:opacity-50 accent-[#1677e8]"
           />
           <span className="text-[11px] font-semibold text-slate-700">
             {label}
@@ -84,10 +99,13 @@ const FormInput = ({
             value={value ?? ""}
             onChange={onChange}
             onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            min={min}
+            max={max}
             readOnly={readOnly}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+            className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
               ${
                 readOnly || disabled
                   ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -111,10 +129,13 @@ const FormInput = ({
         value={value ?? ""}
         onChange={onChange}
         onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        min={min}
+        max={max}
         readOnly={readOnly}
         disabled={disabled}
         placeholder={placeholder}
-        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+        className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
           ${
             readOnly || disabled
               ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -131,9 +152,9 @@ const FormSearchSelect = ({
   value,
   searchTerm = "",
   setSearchTerm,
-  options,
+  options = [],
   onSelect,
-  displayKey,
+  displayKey = "name",
   secondaryKey,
   disabled,
   placeholder = "",
@@ -141,13 +162,14 @@ const FormSearchSelect = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
+  const containerRef = useRef(null);
 
   const searchVal = setSearchTerm ? searchTerm : localSearch;
   const setSearchVal = setSearchTerm ? setSearchTerm : setLocalSearch;
 
   const selectedOption = options?.find((opt) => {
-    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey]];
-    return candidateKeys.some((key) => String(key) === String(value));
+    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey], opt.statusCd, opt.closeActTgtCd];
+    return candidateKeys.some((key) => key !== undefined && String(key).trim() === String(value).trim());
   });
 
   const filteredOptions = (options || []).filter((opt) => {
@@ -166,14 +188,25 @@ const FormSearchSelect = ({
       ? selectedOption[displayKey]
       : searchVal || value || "";
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setShowDropdown(false);
+        setIsTyping(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
-    <div className="flex flex-col gap-1 w-full relative">
+    <div ref={containerRef} className="flex flex-col gap-1 w-full relative">
       {label && (
         <span className="text-xs font-semibold text-slate-700 select-none">
           {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
         </span>
       )}
-      <div className="relative">
+      <div className="relative w-full">
         <input
           type="text"
           disabled={disabled}
@@ -184,13 +217,8 @@ const FormSearchSelect = ({
             setSearchVal(e.target.value);
             setShowDropdown(true);
           }}
-          onBlur={() => {
-            setTimeout(() => {
-              setIsTyping(false);
-            }, 200);
-          }}
           onFocus={() => !disabled && setShowDropdown(true)}
-          className={`w-full pl-2 pr-8 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none
+          className={`w-full h-[32px] pl-2.5 pr-8 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none
             ${
               disabled
                 ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -198,45 +226,47 @@ const FormSearchSelect = ({
             }`}
         />
         <div
-          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center"
           onClick={() => !disabled && setShowDropdown(!showDropdown)}
         >
-          <Search size={12} />
+          <ChevronDown size={14} />
         </div>
 
         {showDropdown && !disabled && (
-          <>
-            <div className="absolute left-0 top-full z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((opt, idx) => (
-                  <div
-                    key={idx}
-                    className="px-3 py-2 text-[11px] hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none font-medium text-slate-700 flex items-center justify-between"
-                    onClick={() => {
-                      onSelect(opt);
-                      setSearchVal("");
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <span>{opt[displayKey]}</span>
-                    {secondaryKey && opt[secondaryKey] && (
-                      <span className="text-slate-400 ml-2">
-                        ({opt[secondaryKey]})
-                      </span>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="px-3 py-4 text-[11px] text-slate-400 italic text-center">
-                  No matches
+          <div
+            className="absolute left-0 top-full z-[999] w-full mt-1 bg-white border border-slate-200 rounded-md shadow-xl overflow-y-auto custom-scrollbar"
+            style={{ maxHeight: "140px", overflowY: "auto" }}
+          >
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt, idx) => (
+                <div
+                  key={idx}
+                  className="px-3 py-2 text-[11px] hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none font-medium text-slate-700 flex items-center justify-between"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(opt);
+                    setSearchVal("");
+                    setIsTyping(false);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <span>{opt[displayKey]}</span>
+                  {secondaryKey && opt[secondaryKey] && (
+                    <span className="text-slate-400 ml-2 text-[10px]">
+                      ({opt[secondaryKey]})
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-            <div
-              className="fixed inset-0 z-[90]"
-              onClick={() => setShowDropdown(false)}
-            />
-          </>
+              ))
+            ) : (
+              <div className="px-3 py-3 text-[11px] text-slate-400 italic text-center">
+                No matches
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -251,20 +281,23 @@ const ManageFiscalYear = ({ canEdit }) => {
   const [isFormView, setIsFormView] = useState(true);
   const [loading, setLoading] = useState(false);
   const [selectedRows, setSelectedRows] = useState([]);
+
+  // --- Sorting State ---
+  const [sortOrder, setSortOrder] = useState(null); // 'asc' | 'desc' | null
+
   // --- UI & Find/Replace States ---
   const [searchTermProfiles, setSearchTermProfiles] = useState("");
+  const [searchTermRate, setSearchTermRate] = useState("");
   const [clipboard, setClipboard] = useState([]);
   const [hasCopied, setHasCopied] = useState(false);
-  const [searchColumn, setSearchColumn] = useState("fyCd");
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [searchColumn, setSearchColumn] = useState("all");
   const [searchValue, setSearchValue] = useState("");
   const [replaceValue, setReplaceValue] = useState("");
   const [isReplaceMode, setIsReplaceMode] = useState(false);
 
   const [showSubModal, setShowSubModal] = useState(false);
   const [subValue, setSubValue] = useState(1);
-  const isInitialized = useRef(false);
-
-  const [isMapping, setIsMapping] = useState(false);
 
   const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
@@ -281,13 +314,36 @@ const ManageFiscalYear = ({ canEdit }) => {
     { closeActTgtCd: "T", name: "Target Rates" },
   ];
 
-  // --- Table Column Definitions ---
+  const toggleSort = () => {
+    setSortOrder((prev) => (prev === "asc" ? "desc" : prev === "desc" ? null : "asc"));
+  };
+
+  // --- Table Column Definitions with Column Sorting ---
   const myColumns = [
     {
       label: "Fiscal Year",
       key: "fyCd",
       required: true,
       readOnlyIfExisting: true,
+      sortIcon: (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleSort();
+          }}
+          className="cursor-pointer p-0.5 hover:bg-black/5 rounded transition-colors text-slate-500 hover:text-slate-800 inline-flex items-center justify-center"
+          title="Sort by Fiscal Year (Click to cycle Asc / Desc / Default)"
+        >
+          {sortOrder === "asc" ? (
+            <ArrowUp size={13} className="text-[#1677e8] font-bold" />
+          ) : sortOrder === "desc" ? (
+            <ArrowDown size={13} className="text-[#1677e8] font-bold" />
+          ) : (
+            <ArrowUpDown size={13} className="text-slate-400" />
+          )}
+        </button>
+      ),
     },
     { label: "Description", key: "fyDesc", required: true },
     {
@@ -314,124 +370,7 @@ const ManageFiscalYear = ({ canEdit }) => {
     },
   ];
 
-  const FY_MASTER_COLUMNS = [
-    { id: "fyCd", label: "Fiscal Year", type: "year", allowReplace: false },
-    { id: "fyDesc", label: "Description", type: "text", allowReplace: true },
-    {
-      id: "statusCd",
-      label: "Status",
-      type: "select",
-      allowReplace: true,
-      options: statusOpt.map((s) => ({ value: s.statusCd, label: s.name })),
-    },
-    {
-      id: "closeActTgtCd",
-      label: "Rate Type",
-      type: "select",
-      allowReplace: true,
-      options: rateOpt.map((r) => ({ value: r.closeActTgtCd, label: r.name })),
-    },
-  ];
-
-  const handleFindReplace = (config, isReplaceMode) => {
-    const {
-      column,
-      findValue = "",
-      findYear = "",
-      replaceValue = "",
-      replaceYear = "",
-    } = config;
-
-    if (!column) return toast.warn("Please select a column first.");
-
-    // --- FIND LOGIC ---
-    if (!isReplaceMode) {
-      setIsMapping(true);
-      const targetFind = column === "fyCd" ? findYear : findYear;
-      if (!targetFind) return toast.warn("Please enter a value to find.");
-
-      const foundIndex = fycd.findIndex((item) => {
-        const currentValue = String(item[column] || "").toLowerCase();
-        const search = String(targetFind).toLowerCase();
-        return column === "fyCd"
-          ? currentValue === search
-          : currentValue.includes(search);
-      });
-
-      if (foundIndex !== -1) {
-        const foundRecord = fycd[foundIndex];
-        setSelectedFycdRow(foundRecord);
-        setSelectedRows([foundRecord]);
-        setFilteredGroups([foundRecord]);
-        toast.info(`Found match at row ${foundIndex + 1}`);
-      } else {
-        toast.error(`Value not found.`);
-      }
-      return;
-    }
-
-    // --- REPLACE LOGIC ---
-    const isFindEmpty = column === "fyCd" ? !findYear : !findValue;
-    if (isFindEmpty) {
-      const proceed = window.confirm(
-        "Find field is empty. This will replace EVERY record. Continue?",
-      );
-      if (!proceed) return;
-    }
-
-    if (!window.confirm("Apply bulk changes?")) return;
-
-    setFycd((prevData) => {
-      let changeCount = 0;
-
-      let syncName = "";
-      if (column === "statusCd") {
-        syncName =
-          statusOpt.find((s) => String(s.statusCd) === String(replaceValue))
-            ?.name || "";
-      } else if (column === "closeActTgtCd") {
-        syncName =
-          rateOpt.find((r) => String(r.closeActTgtCd) === String(replaceValue))
-            ?.name || "";
-      }
-
-      const updatedData = prevData.map((item) => {
-        const currentValue = String(item[column] || "").toLowerCase();
-        const searchString = String(
-          column === "fyCd" ? findYear : findValue,
-        ).toLowerCase();
-
-        if (searchString === "" || currentValue.includes(searchString)) {
-          changeCount++;
-          let updatedItem = { ...item, isDirty: true };
-
-          if (column === "statusCd") {
-            updatedItem.statusCd = replaceValue;
-            updatedItem.statusName = syncName;
-          } else if (column === "closeActTgtCd") {
-            updatedItem.closeActTgtCd = replaceValue;
-            updatedItem.rateName = syncName;
-          } else if (column === "fyCd") {
-            updatedItem.fyCd = replaceYear;
-          } else {
-            updatedItem[column] = replaceValue;
-          }
-
-          return updatedItem;
-        }
-        return item;
-      });
-
-      if (changeCount > 0) {
-        toast.success(`Updated ${changeCount} records.`);
-      } else {
-        toast.info("No matches found.");
-      }
-      return updatedData;
-    });
-  };
-
-  const fetchData = async (isReset = false) => {
+  const fetchData = async () => {
     setLoading(true);
     try {
       const res = await api.get(`${backendUrl}/api/FiscalYear`);
@@ -447,17 +386,11 @@ const ManageFiscalYear = ({ canEdit }) => {
           "",
       }));
 
-      setFycd((prev) => {
-        const combined = [...enrichedData];
-
-        if (combined.length > 0) {
-          setSelectedFycdRow(combined[0]);
-          setSelectedRows([combined[0]]);
-          return combined;
-        } else {
-          return [];
-        }
+      setFycd(() => {
+        return [...enrichedData];
       });
+      setSelectedRows([]);
+      setSelectedFycdRow(enrichedData.length > 0 ? enrichedData[0] : null);
 
       if (enrichedData.length === 0) {
         handleAddFyCd();
@@ -471,11 +404,58 @@ const ManageFiscalYear = ({ canEdit }) => {
 
   const getRowKey = (row) => row?.tableRowKey || row?.tempId || row?.fyCd || "";
 
+  // --- Draft Store Hydration on Mount ---
   useEffect(() => {
-    const initialize = async () => {
-      await fetchData();
+    const draft = useDraftStore.getState().getDraft("manage-fiscal-year");
+    if (draft && Array.isArray(draft.fycd) && draft.fycd.length > 0 && (draft.isDirty || draft.hasUnsaved)) {
+      setFycd(draft.fycd);
+      if (draft.selectedFycdRow) setSelectedFycdRow(draft.selectedFycdRow);
+      if (draft.selectedRows) setSelectedRows(draft.selectedRows);
+      if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+    } else {
+      fetchData();
+    }
+  }, []);
+
+  // --- Auto-Save Draft to Zustand ---
+  const fycdRef = useRef(fycd);
+  const selectedFycdRowRef = useRef(selectedFycdRow);
+  const selectedRowsRef = useRef(selectedRows);
+  const isFormViewRef = useRef(isFormView);
+
+  useEffect(() => {
+    fycdRef.current = fycd;
+    selectedFycdRowRef.current = selectedFycdRow;
+    selectedRowsRef.current = selectedRows;
+    isFormViewRef.current = isFormView;
+
+    const hasDirty = fycd.some((r) => r.isDirty || r.tempId);
+    if (hasDirty) {
+      useDraftStore.getState().saveDraft("manage-fiscal-year", {
+        fycd,
+        selectedFycdRow,
+        selectedRows,
+        isFormView,
+        isDirty: true,
+        hasUnsaved: true,
+      });
+    }
+  }, [fycd, selectedFycdRow, selectedRows, isFormView]);
+
+  useEffect(() => {
+    return () => {
+      const cur = fycdRef.current;
+      if (cur && cur.some((r) => r.isDirty || r.tempId)) {
+        useDraftStore.getState().saveDraft("manage-fiscal-year", {
+          fycd: cur,
+          selectedFycdRow: selectedFycdRowRef.current,
+          selectedRows: selectedRowsRef.current,
+          isFormView: isFormViewRef.current,
+          isDirty: true,
+          hasUnsaved: true,
+        });
+      }
     };
-    initialize();
   }, []);
 
   const handleFieldChange = (id, field, value) => {
@@ -515,73 +495,6 @@ const ManageFiscalYear = ({ canEdit }) => {
     );
   };
 
-  const handleFind = () => {
-    if (!searchValue) {
-      setFilteredGroups([]);
-      return;
-    }
-    const results = fycd.filter((g) =>
-      String(g[searchColumn] || "")
-        .toLowerCase()
-        .includes(searchValue.toLowerCase()),
-    );
-
-    if (results.length > 0) {
-      setFilteredGroups(results);
-      setSelectedFycdRow(results[0]);
-      toast.success(`Found ${results.length} matches`);
-    } else {
-      toast.error("No matching records found");
-      setFilteredGroups([]);
-    }
-  };
-
-  const handleBulkReplace = () => {
-    if (!searchValue) return toast.warn("Enter value to find");
-
-    if (searchColumn === "fyCd") {
-      return toast.error(
-        "Fiscal Year Code is a unique identifier and cannot be bulk replaced.",
-      );
-    }
-
-    const updatedData = fycd.map((item) => {
-      const currentValue = String(item[searchColumn] || "").toLowerCase();
-      if (currentValue === searchValue.toLowerCase()) {
-        const newItem = {
-          ...item,
-          [searchColumn]: replaceValue,
-          isDirty: true,
-        };
-
-        if (searchColumn === "statusName") {
-          const match = statusOpt.find(
-            (o) => o.name.toLowerCase() === replaceValue.toLowerCase(),
-          );
-          if (match) newItem.statusCd = match.statusCd;
-        }
-
-        if (searchColumn === "rateName") {
-          const match = rateOpt.find(
-            (o) => o.name.toLowerCase() === replaceValue.toLowerCase(),
-          );
-          if (match) newItem.closeActTgtCd = match.closeActTgtCd;
-        }
-
-        return newItem;
-      }
-      return item;
-    });
-
-    setFycd(updatedData);
-    if (filteredGroups.length > 0) {
-      handleFind();
-    }
-
-    toast.success("Replacements applied successfully.");
-    setIsReplaceMode(false);
-  };
-
   const handleAddFyCd = () => {
     const currentYear = new Date().getFullYear();
     const tempId = `TEMP_${Date.now()}`;
@@ -605,21 +518,25 @@ const ManageFiscalYear = ({ canEdit }) => {
   };
 
   const handleDelete = async () => {
-    if (selectedRows.length === 0) {
+    const rowsToDelete = isFormView
+      ? (selectedFycdRow ? [selectedFycdRow] : [])
+      : (selectedRows || []);
+
+    if (rowsToDelete.length === 0) {
       return toast.warn("Select at least one record to delete.");
     }
 
     const confirmMessage =
-      selectedRows.length === 1
-        ? `Delete Fiscal Year: ${selectedRows[0].fyCd || "New Record"}?`
-        : `Are you sure you want to delete ${selectedRows.length} selected records?`;
+      rowsToDelete.length === 1
+        ? `Delete Fiscal Year: ${rowsToDelete[0].fyCd || "New Record"}?`
+        : `Are you sure you want to delete ${rowsToDelete.length} selected records?`;
 
     if (!window.confirm(confirmMessage)) return;
 
     setLoading(true);
     try {
       await Promise.all(
-        selectedRows.map((row) => {
+        rowsToDelete.map((row) => {
           if (!row.tempId) {
             const companyId = row.companyId || "";
             return api.delete(
@@ -630,14 +547,14 @@ const ManageFiscalYear = ({ canEdit }) => {
         }),
       );
 
-      const deletedIdentifiers = selectedRows.map((r) => getRowKey(r));
+      const deletedIdentifiers = rowsToDelete.map((r) => getRowKey(r));
       const updatedList = fycd.filter(
         (f) => !deletedIdentifiers.includes(getRowKey(f)),
       );
 
       setFycd(updatedList);
       setSelectedRows([]);
-      setSelectedFycdRow(updatedList[0] || null);
+      setSelectedFycdRow(null);
 
       if (updatedList.length === 0) {
         handleAddFyCd();
@@ -807,75 +724,42 @@ const ManageFiscalYear = ({ canEdit }) => {
     if (selectedRows.length === 0)
       return toast.warn("Select at least one record to copy.");
 
-    setClipboard([...selectedRows]);
+    const rowsToCopy = isFormView
+      ? (selectedFycdRow ? [selectedFycdRow] : [])
+      : (selectedRows || []);
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one record to copy.");
+    }
+
+    setClipboard([...rowsToCopy]);
     setHasCopied(true);
-
-    const header = "Fiscal Year\tDescription\tStatus\tRate Type";
-    const rows = selectedRows
-      .map((row) => {
-        const fyCd = row.fyCd || "";
-        const fyDesc = row.fyDesc || "";
-        const statusName =
-          row.statusName ||
-          statusOpt.find((o) => o.statusCd === row.statusCd)?.name ||
-          "";
-        const rateName =
-          row.rateName ||
-          rateOpt.find((o) => o.closeActTgtCd === row.closeActTgtCd)?.name ||
-          "";
-        return `${fyCd}\t${fyDesc}\t${statusName}\t${rateName}`;
-      })
-      .join("\n");
-
-    const tsvContent = `${header}\n${rows}`;
-
-    navigator.clipboard
-      .writeText(tsvContent)
-      .then(() => {
-        toast.success(`${selectedRows.length} record(s) copied to clipboard`);
-      })
-      .catch((err) => {
-        console.error("Failed to copy to system clipboard:", err);
-        toast.warn(`${selectedRows.length} record(s) copied internally.`);
-      });
+    toast.success(`${rowsToCopy.length} record(s) copied.`);
   };
 
-  const handlePaste = async () => {
-    if (clipboard && clipboard.length > 0 && !clipboard[0]?.isDummy) {
-      const pasted = clipboard.map((row, i) => {
-        const clonedRow = JSON.parse(JSON.stringify(row));
-        const { tempId, id, fyCd, ...restProps } = clonedRow;
-        const tempIdVal = `PASTE_${Date.now()}_${i}`;
-        return {
-          ...restProps,
-          fyCd: fyCd || "",
-          tempId: tempIdVal,
-          tableRowKey: tempIdVal,
-          isDirty: true,
-        };
-      });
-
-      setFycd((prev) => [...pasted, ...prev]);
-      setSelectedFycdRow(pasted[0]);
-      setSelectedRows([pasted[0]]);
-      toast.success(`${pasted.length} record(s) pasted.`);
-      return;
+  const handlePaste = () => {
+    if (!clipboard || clipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy a record first.");
     }
 
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text && text.trim()) {
-        processPastedText(text);
-        return;
-      }
-    } catch (err) {
-      console.warn(
-        "System clipboard access failed, falling back to local memory paste",
-        err,
-      );
-    }
+    const pasted = clipboard.map((row, i) => {
+      const clonedRow = JSON.parse(JSON.stringify(row));
+      const { tempId, id, fyCd, ...restProps } = clonedRow;
+      const tempIdVal = `TEMP_${Date.now()}_${i}`;
+      return {
+        ...restProps,
+        fyCd: fyCd ? `${fyCd}-C` : "",
+        tempId: tempIdVal,
+        tableRowKey: tempIdVal,
+        isNew: true,
+        isDirty: true,
+      };
+    });
 
-    toast.warn("Clipboard is empty.");
+    setFycd((prev) => [...pasted, ...prev]);
+    setSelectedFycdRow(pasted[0]);
+    setSelectedRows([pasted[0]]);
+    toast.success(`${pasted.length} record(s) pasted successfully.`);
   };
 
   useEffect(() => {
@@ -906,35 +790,6 @@ const ManageFiscalYear = ({ canEdit }) => {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [fycd, clipboard]);
 
-  useEffect(() => {
-    const syncClipboardWithSystem = async () => {
-      try {
-        if (!navigator.permissions || !navigator.permissions.query) return;
-        const permission = await navigator.permissions.query({
-          name: "clipboard-read",
-        });
-        if (permission.state === "granted") {
-          const text = await navigator.clipboard.readText();
-          if (text && text.trim()) {
-            setClipboard((prev) =>
-              prev.length === 0 || prev[0]?.isDummy
-                ? [{ isDummy: true }]
-                : prev,
-            );
-          } else {
-            setClipboard((prev) =>
-              prev.length > 0 && prev[0]?.isDummy ? [] : prev,
-            );
-          }
-        }
-      } catch (err) {}
-    };
-
-    window.addEventListener("focus", syncClipboardWithSystem);
-    syncClipboardWithSystem();
-    return () => window.removeEventListener("focus", syncClipboardWithSystem);
-  }, []);
-
   const handleClear = () => {
     const hasNewRows = fycd.some((f) => !!f.tempId);
     const hasEdits = fycd.some((f) => f.isDirty === true);
@@ -942,11 +797,11 @@ const ManageFiscalYear = ({ canEdit }) => {
     if (!hasNewRows && !hasEdits) return;
 
     if (window.confirm("Discard unsaved changes and new rows?")) {
+      useDraftStore.getState().clearDraft("manage-fiscal-year");
       setFycd((prev) => prev.filter((f) => !f.tempId));
       fetchData();
       setFilteredGroups([]);
       setSelectedRows([]);
-      setIsMapping(false);
       toast.info("Unsaved changes discarded.");
     }
   };
@@ -992,6 +847,7 @@ const ManageFiscalYear = ({ canEdit }) => {
         }),
       );
 
+      useDraftStore.getState().clearDraft("manage-fiscal-year");
       toast.success("Changes saved successfully");
       setShowSubModal(false);
       fetchData();
@@ -1002,6 +858,130 @@ const ManageFiscalYear = ({ canEdit }) => {
       setLoading(false);
     }
   };
+
+  // --- Find & Replace Handlers ---
+  const handleFind = () => {
+    if (!searchValue.trim()) {
+      setFilteredGroups([]);
+      return toast.info("Search filter cleared.");
+    }
+    const term = searchValue.toLowerCase().trim();
+    const matches = fycd.filter((row) => {
+      if (searchColumn === "fyCd") return String(row.fyCd || "").toLowerCase().includes(term);
+      if (searchColumn === "fyDesc") return String(row.fyDesc || "").toLowerCase().includes(term);
+      if (searchColumn === "statusName") return String(row.statusName || "").toLowerCase().includes(term);
+      if (searchColumn === "rateName") return String(row.rateName || "").toLowerCase().includes(term);
+      return (
+        String(row.fyCd || "").toLowerCase().includes(term) ||
+        String(row.fyDesc || "").toLowerCase().includes(term) ||
+        String(row.statusName || "").toLowerCase().includes(term) ||
+        String(row.rateName || "").toLowerCase().includes(term)
+      );
+    });
+
+    setFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching records found.");
+    } else {
+      setSelectedRows(matches);
+      setSelectedFycdRow(matches[0]);
+      toast.success(`Found ${matches.length} matching record(s).`);
+    }
+  };
+
+  const handleReplaceAll = () => {
+    if (searchColumn === "fyCd") {
+      return toast.warn("Fiscal Year Code cannot be modified via Replace.");
+    }
+    if (!searchValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = searchValue.trim();
+    let replaceCount = 0;
+
+    const targetList = filteredGroups.length > 0 ? filteredGroups : fycd;
+    const targetKeys = new Set(targetList.map((r) => getRowKey(r)));
+
+    const updated = fycd.map((row) => {
+      if (!targetKeys.has(getRowKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        searchColumn === "all"
+          ? ["fyDesc", "statusName", "rateName"]
+          : [searchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (colKey === "statusName") {
+          if (String(row.statusName || "").toLowerCase() === term.toLowerCase()) {
+            const resolved = resolveStatus(replaceValue);
+            updatedRow.statusCd = resolved.statusCd;
+            updatedRow.statusName = resolved.statusName;
+            changed = true;
+            replaceCount++;
+          }
+        } else if (colKey === "rateName") {
+          if (String(row.rateName || "").toLowerCase() === term.toLowerCase()) {
+            const resolved = resolveRateType(replaceValue);
+            updatedRow.closeActTgtCd = resolved.closeActTgtCd;
+            updatedRow.rateName = resolved.rateName;
+            changed = true;
+            replaceCount++;
+          }
+        } else if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, replaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      setFycd(updated);
+      if (selectedFycdRow) {
+        const found = updated.find((r) => getRowKey(r) === getRowKey(selectedFycdRow));
+        if (found) {
+          setSelectedFycdRow(found);
+          setSelectedRows([found]);
+        }
+      }
+      if (filteredGroups.length > 0) {
+        setFilteredGroups(filteredGroups.map(fg => updated.find(u => getRowKey(u) === getRowKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleClearFind = () => {
+    setSearchValue("");
+    setReplaceValue("");
+    setFilteredGroups([]);
+  };
+
+  // --- Memoized Sorted and Filtered Table Data ---
+  const displayData = useMemo(() => {
+    const base = filteredGroups.length > 0 ? filteredGroups : fycd;
+    if (!sortOrder) return base;
+    return [...base].sort((a, b) => {
+      const valA = String(a.fyCd || "").toLowerCase();
+      const valB = String(b.fyCd || "").toLowerCase();
+      if (sortOrder === "asc") {
+        return valA.localeCompare(valB, undefined, { numeric: true });
+      }
+      return valB.localeCompare(valA, undefined, { numeric: true });
+    });
+  }, [fycd, filteredGroups, sortOrder]);
 
   let currentIndex = fycd.findIndex(
     (f) => getRowKey(f) === getRowKey(selectedFycdRow || {}),
@@ -1017,19 +997,6 @@ const ManageFiscalYear = ({ canEdit }) => {
     if (newIdx >= 0 && newIdx < fycd.length) {
       setSelectedFycdRow(fycd[newIdx]);
       setSelectedRows([fycd[newIdx]]);
-    }
-  };
-
-  const jumpToCode = (code) => {
-    const index = fycd.findIndex(
-      (item) => item.fyCd.toString().toLowerCase() === code.toLowerCase(),
-    );
-    if (index !== -1) {
-      const targetRow = fycd[index];
-      setSelectedFycdRow(targetRow);
-      setSelectedRows([targetRow]);
-    } else {
-      toast.info("Fiscal Year Code not found");
     }
   };
 
@@ -1080,6 +1047,13 @@ const ManageFiscalYear = ({ canEdit }) => {
     setIsFormView(true);
   };
 
+  const hasSelection = isFormView
+    ? !!selectedFycdRow && fycd.length > 0
+    : Array.isArray(selectedRows) && selectedRows.length > 0;
+  const isCopyDisabled = loading || !hasSelection;
+  const isDeleteDisabled = loading || !hasSelection;
+  const isPasteDisabled = loading || !clipboard || clipboard.length === 0;
+
   return (
     <div className="payment-voucher-page min-h-full bg-white text-[#1f2937] font-inter">
       <style>
@@ -1091,14 +1065,48 @@ const ManageFiscalYear = ({ canEdit }) => {
         .payment-voucher-page .voucher-primary-btn:hover { background:#125bc3; border-color:#125bc3; }
         .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
         .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#52657c; cursor:pointer; }
-        .payment-voucher-page .voucher-panel { border:1px solid #e5e7eb; border-radius:6px; background:#fff; padding:0; box-shadow:none; overflow:hidden; }
-        .payment-voucher-page .voucher-panel-title { display:flex; align-items:center; min-height:36px; margin:0 12px 0; padding:0; border-bottom:1px solid #eeeeee; color:#3c4043; font-size:12px; font-weight:600; }
-        .payment-voucher-page .voucher-master-card { padding:14px; }
+        .payment-voucher-page .voucher-head-btn:disabled,
+        .payment-voucher-page .voucher-primary-btn:disabled,
+        .payment-voucher-page .voucher-icon-btn:disabled,
+        .payment-voucher-page .voucher-outline-btn:disabled {
+          opacity: 0.45 !important;
+          cursor: not-allowed !important;
+          pointer-events: none !important;
+          background: #f8fafc !important;
+          border-color: #e2e8f0 !important;
+          color: #94a3b8 !important;
+        }
+        .payment-voucher-page .voucher-panel { border:1px solid #e5e7eb; border-radius:6px; background:#fff; padding:0; box-shadow:none; overflow:visible !important; }
+        .payment-voucher-page .voucher-panel > .flex.items-center { min-height:36px; padding:0 12px; margin:0; border-bottom:1px solid #eeeeee; }
+        .payment-voucher-page .voucher-panel > .flex.items-center span { color:#3c4043 !important; font-size:12px !important; font-weight:600 !important; }
+        .payment-voucher-page .voucher-master-card { padding:0 !important; overflow:visible !important; }
+        .payment-voucher-page .voucher-master-card .voucher-panel-title { min-height:36px; margin:0; padding:0 12px 0; }
+        .payment-voucher-page .voucher-master-card > .grid { padding:12px; overflow:visible !important; }
+        .payment-voucher-page .voucher-master-card .space-y-2 { gap:10px; position:relative; }
+        .payment-voucher-page .voucher-panel-title { display:flex; align-items:center; min-height:36px; margin:0 12px 0; padding:0 0 0; border-bottom:1px solid #eeeeee; color:#3c4043; font-size:12px; font-weight:600; }
         .payment-voucher-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; }
         .payment-voucher-page .voucher-nav-btn:last-child { border-right:0; }
         .payment-voucher-page .voucher-nav-btn:hover { background:#eaf1f7; color:#17414d; }
         .payment-voucher-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
         .payment-voucher-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
+        
+        /* TABLE INPUT STYLING MATCHING MANAGECOUNTRIES */
+        .payment-voucher-page .td-input[readonly] {
+          background-color: #f8fafc !important; /* bg-slate-50 style */
+          color: #94a3b8 !important;            /* text-slate-400 style */
+          border-color: #e2e8f0 !important;      /* border-slate-200 style */
+          cursor: not-allowed !important;
+          pointer-events: none !important;
+          user-select: none !important;
+        }
+        .payment-voucher-page .td-input:focus,
+        .payment-voucher-page .td-input:focus-visible,
+        .payment-voucher-page .td-input:focus-within,
+        .payment-voucher-page .td-input:active {
+          outline: none !important;
+          box-shadow: none !important;
+          border-color: transparent !important;
+        }
         `}
       </style>
 
@@ -1181,6 +1189,7 @@ const ManageFiscalYear = ({ canEdit }) => {
               type="button"
               className="voucher-head-btn"
               onClick={handleCopy}
+              disabled={isCopyDisabled}
             >
               <Copy size={14} />
               Copy
@@ -1190,6 +1199,7 @@ const ManageFiscalYear = ({ canEdit }) => {
               type="button"
               className="voucher-head-btn"
               onClick={handlePaste}
+              disabled={isPasteDisabled}
             >
               <ClipboardPaste size={14} />
               Paste
@@ -1198,6 +1208,7 @@ const ManageFiscalYear = ({ canEdit }) => {
             <button
               type="button"
               onClick={handleDelete}
+              disabled={isDeleteDisabled}
               className="voucher-head-btn"
             >
               <Trash2 size={14} />
@@ -1230,6 +1241,18 @@ const ManageFiscalYear = ({ canEdit }) => {
 
             <button
               type="button"
+              onClick={() => setShowFindReplace(!showFindReplace)}
+              className={`voucher-head-btn ${
+                showFindReplace ? "bg-[#1677e8]/10 text-[#1677e8] border-[#1677e8]/40 font-semibold" : ""
+              }`}
+              title="Toggle Find & Replace"
+            >
+              <Replace size={14} />
+              Find & Replace
+            </button>
+
+            <button
+              type="button"
               onClick={toggleView}
               disabled={loading}
               className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
@@ -1258,13 +1281,99 @@ const ManageFiscalYear = ({ canEdit }) => {
         </div>
       </div>
 
-      {/* ORIGINAL CONTENT, RESTYLED TO THE NEW UI */}
+      {/* MAIN CONTENT AREA */}
       <div className="px-4 pb-4 pt-3 lg:px-4">
-        <div className="new-ui-content text-xs">
+        <div className="new-ui-content text-xs space-y-2">
+          {/* Find & Replace Bar (Available in both Form and Table views) */}
+          {showFindReplace && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                  <select
+                    value={searchColumn}
+                    onChange={(e) => setSearchColumn(e.target.value)}
+                    className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                  >
+                    <option value="all">All Columns</option>
+                    <option value="fyCd">Fiscal Year</option>
+                    <option value="fyDesc">Description</option>
+                    <option value="statusName">Status</option>
+                    <option value="rateName">Rate Type</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Find..."
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleFind()}
+                    className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Replace with..."
+                    value={replaceValue}
+                    disabled={searchColumn === "fyCd"}
+                    onChange={(e) => setReplaceValue(e.target.value)}
+                    className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                      searchColumn === "fyCd"
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                        : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                    }`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleFind}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+                >
+                  Find / Filter
+                </button>
+
+                <button
+                  type="button"
+                  disabled={searchColumn === "fyCd"}
+                  onClick={handleReplaceAll}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                    searchColumn === "fyCd"
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                  }`}
+                >
+                  Replace All
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearFind}
+                  className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFindReplace(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                title="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           {!isFormView ? (
             <div className="bg-white border border-gray-200 p-2 rounded">
               <ReusableTable
-                data={filteredGroups.length > 0 ? filteredGroups : fycd}
+                data={displayData}
                 columns={myColumns}
                 rowKey="tableRowKey"
                 doubleclick={handleRowDoubleClick}
@@ -1278,92 +1387,87 @@ const ManageFiscalYear = ({ canEdit }) => {
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Fiscal Year Master Header Form Container */}
               <div className="voucher-panel voucher-master-card mb-4">
                 <div className="voucher-panel-title">
                   <span className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Fiscal Year Details
+                    Fiscal Year
                   </span>
                 </div>
-                <div className="p-3">
-                  <FormSection>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                      <FormInput
-                        label="Fiscal Year"
-                        required
-                        value={selectedFycdRow?.fyCd || ""}
-                        readOnly={
-                          !!selectedFycdRow?.id && !selectedFycdRow?.tempId
-                        }
-                        onChange={(e) =>
-                          handleFieldChange(
-                            getRowKey(selectedFycdRow || {}),
-                            "fyCd",
-                            e.target.value,
-                          )
-                        }
-                      />
-                      <FormInput
-                        label="Description"
-                        required
-                        value={selectedFycdRow?.fyDesc || ""}
-                        onChange={(e) =>
-                          handleFieldChange(
-                            getRowKey(selectedFycdRow || {}),
-                            "fyDesc",
-                            e.target.value,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <FormSearchSelect
-                        label="Status"
-                        value={
-                          selectedFycdRow?.statusName ||
-                          selectedFycdRow?.statusCd ||
-                          ""
-                        }
-                        searchTerm={searchTermProfiles}
-                        setSearchTerm={setSearchTermProfiles}
-                        options={statusOpt.filter((o) =>
-                          o.name
-                            .toLowerCase()
-                            .includes(searchTermProfiles.toLowerCase()),
-                        )}
-                        displayKey="name"
-                        onSelect={(p) => {
-                          const id = getRowKey(selectedFycdRow || {});
-                          handleFieldChange(id, "statusCd", p.statusCd);
-                          handleFieldChange(id, "statusName", p.name);
-                        }}
-                      />
-                      <FormSearchSelect
-                        label="Rate Type"
-                        value={
-                          selectedFycdRow?.rateName ||
-                          selectedFycdRow?.closeActTgtCd ||
-                          ""
-                        }
-                        searchTerm={searchTermProfiles}
-                        setSearchTerm={setSearchTermProfiles}
-                        options={rateOpt.filter((o) =>
-                          o.name
-                            .toLowerCase()
-                            .includes(searchTermProfiles.toLowerCase()),
-                        )}
-                        displayKey="name"
-                        onSelect={(p) => {
-                          const id = getRowKey(selectedFycdRow || {});
-                          handleFieldChange(
-                            id,
-                            "closeActTgtCd",
-                            p.closeActTgtCd,
-                          );
-                          handleFieldChange(id, "rateName", p.name);
-                        }}
-                      />
-                    </div>
-                  </FormSection>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-x-5 gap-y-3">
+                  <div className="space-y-2">
+                    <FormInput
+                      label="Fiscal Year"
+                      required
+                      value={selectedFycdRow?.fyCd || ""}
+                      readOnly={
+                        !selectedFycdRow?.tempId && !selectedFycdRow?.isNew && !!selectedFycdRow?.fyCd
+                      }
+                      onChange={(e) =>
+                        handleFieldChange(
+                          getRowKey(selectedFycdRow || {}),
+                          "fyCd",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <FormInput
+                      label="Description"
+                      required
+                      value={selectedFycdRow?.fyDesc || ""}
+                      onChange={(e) =>
+                        handleFieldChange(
+                          getRowKey(selectedFycdRow || {}),
+                          "fyDesc",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <FormSearchSelect
+                      label="Status"
+                      value={
+                        selectedFycdRow?.statusName ||
+                        selectedFycdRow?.statusCd ||
+                        ""
+                      }
+                      searchTerm={searchTermProfiles}
+                      setSearchTerm={setSearchTermProfiles}
+                      options={statusOpt}
+                      displayKey="name"
+                      onSelect={(p) => {
+                        const id = getRowKey(selectedFycdRow || {});
+                        handleFieldChange(id, "statusCd", p.statusCd);
+                        handleFieldChange(id, "statusName", p.name);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <FormSearchSelect
+                      label="Rate Type"
+                      value={
+                        selectedFycdRow?.rateName ||
+                        selectedFycdRow?.closeActTgtCd ||
+                        ""
+                      }
+                      searchTerm={searchTermRate}
+                      setSearchTerm={setSearchTermRate}
+                      options={rateOpt}
+                      displayKey="name"
+                      onSelect={(p) => {
+                        const id = getRowKey(selectedFycdRow || {});
+                        handleFieldChange(
+                          id,
+                          "closeActTgtCd",
+                          p.closeActTgtCd,
+                        );
+                        handleFieldChange(id, "rateName", p.name);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

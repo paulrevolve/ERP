@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { backendUrl } from "./config";
 import api from "../utils/api";
 import axios from "axios";
@@ -19,9 +19,14 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Replace,
 } from "lucide-react";
 import { MainContainer, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
+import { useDraftStore } from "../store/useDraftStore";
 
 const ManageSalesTaxIcon = () => (
   <div className="p-1 bg-[#f0f4f9] border border-[#d5dfeb] rounded-md shadow-2xs -mr-2 flex items-center justify-center">
@@ -43,6 +48,8 @@ const SalesTaxToolbar = ({
   clipboard = [],
   selectedRow = null,
   selectedCount = 0,
+  onToggleFindReplace,
+  showFindReplace = false,
 }) => {
   const { onAdd, onCopy, onPaste, onClear, onDelete, onSave, onToggleView } = actions;
   const hasSelection = isFormView ? (!!selectedRow && totalRecords > 0) : (selectedCount > 0);
@@ -182,6 +189,17 @@ const SalesTaxToolbar = ({
           </button>
         )}
 
+        {onToggleFindReplace && (
+          <button
+            type="button"
+            onClick={onToggleFindReplace}
+            className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
+            title="Find & Replace"
+          >
+            <Replace size={14} /> Find/Replace
+          </button>
+        )}
+
         {!buttonsDisable.includes("discard") && onClear && (
           <button
             type="button"
@@ -259,6 +277,9 @@ const FormInput = ({
   checked,
   onChange,
   onBlur,
+  onKeyDown,
+  min,
+  max,
   readOnly,
   disabled,
   className = "",
@@ -270,107 +291,58 @@ const FormInput = ({
   icon: Icon,
   onIconClick,
 }) => {
-  const [radioName] = useState(() => `radio-${label ? String(label).replace(/[^a-zA-Z0-9]/g, "") : "field"}-${Math.random().toString(36).substr(2, 9)}`);
-
-  let containerClassName = className;
-  if (type === "checkbox") {
-    containerClassName = className
-      .replace(/\bw-\[[^\]]+\]/g, "")
-      .replace(/\bw-\d+/g, "") + " w-auto min-w-fit flex-shrink-0";
-  }
-
-  if (type === "checkbox") {
-    const isChecked = checked === true || checked === "Y";
-    return (
-      <div className={`flex items-center gap-2.5 py-1 ${containerClassName}`}>
-        {label && (
-          <label className={`text-[11px] font-medium text-[#5f6368] select-none shrink-0 ${labelClassName || "min-w-[120px]"}`}>
-            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
-          </label>
-        )}
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
-            <input
-              type="radio"
-              name={radioName}
-              checked={isChecked}
-              onChange={() => {
-                if (onChange && !disabled) {
-                  onChange({ target: { checked: true, value: "Y" } });
-                }
-              }}
-              disabled={disabled}
-              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-            />
-            Yes
-          </label>
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
-            <input
-              type="radio"
-              name={radioName}
-              checked={!isChecked}
-              onChange={() => {
-                if (onChange && !disabled) {
-                  onChange({ target: { checked: false, value: "N" } });
-                }
-              }}
-              disabled={disabled}
-              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-            />
-            No
-          </label>
-        </div>
-        {helperText && (
-          <p className="text-[10px] text-slate-400 pl-2 leading-tight select-none">{helperText}</p>
-        )}
-      </div>
-    );
-  }
-
-  const isClickable = type === "radio";
+  const isClickable = type === "checkbox" || type === "radio";
 
   if (isClickable) {
     return (
-      <div className={`flex items-center gap-2 py-1 ${className}`}>
-        <input
-          type={type}
-          checked={checked}
-          onChange={onChange}
-          disabled={disabled}
-          className="w-4 h-4 rounded-full border-slate-300 text-slate-900 cursor-pointer accent-blue-600"
-        />
-        {label && (
-          <label className={`text-[11px] font-medium text-[#5f6368] cursor-pointer select-none ${labelClassName}`}>
-            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
-          </label>
-        )}
+      <div className={`flex flex-col gap-1 w-full ${className}`}>
+        <span className="text-xs font-semibold text-slate-700 select-none invisible">
+          &nbsp;
+        </span>
+        <label className="flex items-center gap-2 px-2.5 h-[32px] rounded border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-all duration-150 select-none w-full">
+          <input
+            type={type}
+            checked={checked === true || checked === "Y"}
+            onChange={onChange}
+            disabled={disabled}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-[#1677e8] focus:ring-[#1677e8] cursor-pointer disabled:opacity-50 accent-[#1677e8]"
+          />
+          <span className="text-[11px] font-semibold text-slate-700">
+            {label}
+          </span>
+        </label>
       </div>
     );
   }
 
   if (horizontal) {
     return (
-      <div className={`flex items-center gap-3 py-0.5 ${className}`}>
+      <div
+        className={`flex items-center justify-between gap-4 w-full ${className}`}
+      >
         {label && (
-          <label className={`text-[11px] font-medium text-[#5f6368] min-w-[110px] text-left select-none flex items-center gap-0.5 ${labelClassName}`}>
-            <span>{label}</span>
-            {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
-          </label>
+          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
+            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+          </span>
         )}
-        <div className="relative flex-1 min-w-0 flex items-center">
+        <div className="w-3/5 relative flex items-center">
           <input
             type={type}
             value={value ?? ""}
             onChange={onChange}
             onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            min={min}
+            max={max}
             readOnly={readOnly}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
-              Icon ? "pr-8" : ""
-            } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
-              readOnly || disabled ? "cursor-default select-text" : "cursor-text"
-            }`}
+            className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${Icon ? "pr-8" : ""} ${inputClassName}
+              ${
+                readOnly || disabled
+                  ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+                  : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+              }`}
           />
           {Icon && (
             <div
@@ -390,10 +362,9 @@ const FormInput = ({
   return (
     <div className={`flex flex-col gap-1 w-full min-w-0 ${className}`}>
       {label && (
-        <label className={`text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap ${labelClassName}`}>
-          <span>{label}</span>
-          {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
-        </label>
+        <span className={`text-xs font-semibold text-slate-700 select-none ${labelClassName}`}>
+          {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+        </span>
       )}
       <div className="relative w-full flex items-center">
         <input
@@ -401,14 +372,18 @@ const FormInput = ({
           value={value ?? ""}
           onChange={onChange}
           onBlur={onBlur}
+          onKeyDown={onKeyDown}
+          min={min}
+          max={max}
           readOnly={readOnly}
           disabled={disabled}
           placeholder={placeholder}
-          className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
-            Icon ? "pr-8" : ""
-          } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
-            readOnly || disabled ? "cursor-default select-text" : "cursor-text"
-          }`}
+          className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${Icon ? "pr-8" : ""} ${inputClassName}
+            ${
+              readOnly || disabled
+                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+            }`}
         />
         {Icon && (
           <div
@@ -503,10 +478,9 @@ const SearchableCombobox = ({
   return (
     <div ref={containerRef} className={`flex flex-col gap-1 w-full min-w-0 relative ${className}`}>
       {label && (
-        <label className={`text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap ${labelClassName}`}>
-          <span>{label}</span>
-          {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
-        </label>
+        <span className={`text-xs font-semibold text-slate-700 select-none ${labelClassName}`}>
+          {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+        </span>
       )}
       <div className="relative w-full flex items-center">
         <input
@@ -517,8 +491,10 @@ const SearchableCombobox = ({
           readOnly={readOnly}
           disabled={disabled}
           placeholder={placeholder}
-          className={`w-full h-8 text-[12px] font-normal px-2.5 pr-7 py-1 rounded transition-all outline-none border-0 shadow-none bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
-            readOnly || disabled ? "cursor-default select-text" : "cursor-text"
+          className={`w-full h-[32px] text-[11px] font-medium px-2.5 pr-7 py-1 rounded transition-all outline-none border ${
+            readOnly || disabled
+              ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+              : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
           }`}
         />
         <button
@@ -528,7 +504,7 @@ const SearchableCombobox = ({
           onClick={() => !disabled && !readOnly && setIsOpen((prev) => !prev)}
           className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 disabled:opacity-40 cursor-pointer"
         >
-          <ChevronDown size={13} />
+          <ChevronDown size={14} />
         </button>
       </div>
 
@@ -550,9 +526,7 @@ const SearchableCombobox = ({
               </div>
             ))
           ) : (
-            <div className="px-2.5 py-2 text-slate-400 text-center italic text-[10px]">
-              No matching options
-            </div>
+            <div className="px-3 py-2 text-gray-400 italic text-[11px]">No options found</div>
           )}
         </div>
       )}
@@ -574,6 +548,52 @@ export const ManageSalesTaxes = () => {
   const [isFormView, setIsFormView] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [clipboard, setClipboard] = useState([]);
+
+  // Sorting & Find/Replace State
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [searchColumn, setSearchColumn] = useState("all");
+  const [findValue, setFindValue] = useState("");
+  const [replaceValue, setReplaceValue] = useState("");
+  const [filteredGroups, setFilteredGroups] = useState([]);
+
+  const handleColumnSort = (columnKey) => {
+    if (sortColumn === columnKey) {
+      if (sortDirection === "asc") setSortDirection("desc");
+      else {
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(columnKey);
+      setSortDirection("asc");
+    }
+  };
+
+  const renderSortIcon = (columnKey, label) => {
+    const isSorted = sortColumn === columnKey;
+    return (
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          handleColumnSort(columnKey);
+        }}
+        className="inline-flex items-center gap-1 cursor-pointer hover:text-blue-600 select-none group ml-1"
+        title={`Sort by ${label}`}
+      >
+        {isSorted ? (
+          sortDirection === "asc" ? (
+            <ArrowUp size={13} className="text-blue-600 font-bold" />
+          ) : (
+            <ArrowDown size={13} className="text-blue-600 font-bold" />
+          )
+        ) : (
+          <ArrowUpDown size={13} className="text-gray-400 group-hover:text-blue-600 opacity-60 group-hover:opacity-100" />
+        )}
+      </span>
+    );
+  };
 
   // Level 2 Accounts Variables
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -719,8 +739,8 @@ export const ManageSalesTaxes = () => {
 
   // Column definitions for the tables
   const taxColumns = [
-    { id: "taxCode", key: "taxCode", label: "Tax Code", required: true, type: "text", readOnlyIfExisting: true, width: "120px" },
-    { id: "description", key: "description", label: "Description", required: true, type: "text", readOnlyIfExisting: true, width: "200px" },
+    { id: "taxCode", key: "taxCode", label: "Tax Code", required: true, type: "text", readOnlyIfExisting: true, sortIcon: renderSortIcon("taxCode", "Tax Code"), width: "120px" },
+    { id: "description", key: "description", label: "Description", required: true, type: "text", readOnlyIfExisting: true, sortIcon: renderSortIcon("description", "Description"), width: "200px" },
     { 
       id: "stateProvince", 
       key: "stateProvince", 
@@ -1085,7 +1105,6 @@ export const ManageSalesTaxes = () => {
   };
 
   useEffect(() => {
-    fetchSalesTaxes();
     fetchLookupData();
   }, []);
 
@@ -1255,6 +1274,7 @@ export const ManageSalesTaxes = () => {
         return;
       }
 
+      useDraftStore.getState().clearDraft("manage-sales-taxes");
       toast.success("Changes saved successfully!");
       await fetchSalesTaxes();
     } catch (error) {
@@ -1345,6 +1365,7 @@ export const ManageSalesTaxes = () => {
   };
 
   const handleDiscard = () => {
+    useDraftStore.getState().clearDraft("manage-sales-taxes");
     fetchSalesTaxes();
     toast.info("Changes discarded.");
   };
@@ -1543,14 +1564,231 @@ export const ManageSalesTaxes = () => {
     setSelectedAccountKeys(new Set());
   };
 
-  const filteredSalesTaxes = salesTaxes.filter(c => {
-    const term = searchValue.toLowerCase().trim();
-    if (!term) return true;
-    return (
-      String(c.taxCode).toLowerCase().includes(term) ||
-      String(c.description).toLowerCase().includes(term)
+  // --- Find & Replace Handlers ---
+  const handleFind = () => {
+    if (!findValue.trim()) {
+      setFilteredGroups([]);
+      return toast.info("Search filter cleared.");
+    }
+    const term = findValue.toLowerCase().trim();
+    const matches = salesTaxes.filter((row) => {
+      if (searchColumn !== "all") {
+        return String(row[searchColumn] ?? "").toLowerCase().includes(term);
+      }
+      return taxColumns.some((col) => {
+        const val = row[col.key || col.id];
+        return val !== undefined && val !== null && String(val).toLowerCase().includes(term);
+      });
+    });
+
+    setFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching records found.");
+    } else {
+      setSelectedTaxCodes(new Set([getTaxKey(matches[0])]));
+      setSelectedTax(matches[0]);
+      const idx = salesTaxes.findIndex(c => getTaxKey(c) === getTaxKey(matches[0]));
+      setCurrentIndex(idx >= 0 ? idx : 0);
+      toast.success(`Found ${matches.length} matching record(s).`);
+    }
+  };
+
+  const handleReplaceAll = () => {
+    if (searchColumn === "taxCode") {
+      return toast.warn("Tax Code cannot be modified via Replace.");
+    }
+    if (!findValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = findValue.trim();
+    let replaceCount = 0;
+
+    const targetList = filteredGroups.length > 0 ? filteredGroups : salesTaxes;
+    const targetKeys = new Set(targetList.map((r) => getTaxKey(r)));
+
+    const updated = salesTaxes.map((row) => {
+      if (!targetKeys.has(getTaxKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        searchColumn === "all"
+          ? taxColumns
+              .filter((c) => c.key !== "taxCode" && c.type !== "checkbox" && !c.readOnly)
+              .map((c) => c.key || c.id)
+          : [searchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (colKey === "taxCode") return;
+        if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, replaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      setSalesTaxes(updated);
+      if (selectedTax) {
+        const found = updated.find((r) => getTaxKey(r) === getTaxKey(selectedTax));
+        if (found) {
+          setSelectedTax(found);
+          setSelectedTaxCodes(new Set([getTaxKey(found)]));
+        }
+      }
+      if (filteredGroups.length > 0) {
+        setFilteredGroups(filteredGroups.map(fg => updated.find(u => getTaxKey(u) === getTaxKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleClearFind = () => {
+    setFindValue("");
+    setReplaceValue("");
+    setFilteredGroups([]);
+  };
+
+  // --- Memoized Table & Form Data ---
+  const displaySalesTaxes = useMemo(() => {
+    const base = filteredGroups.length > 0 ? filteredGroups : (
+      searchValue.trim() ? salesTaxes.filter((c) => {
+        const term = searchValue.toLowerCase().trim();
+        return (
+          String(c.taxCode || "").toLowerCase().includes(term) ||
+          String(c.description || "").toLowerCase().includes(term)
+        );
+      }) : salesTaxes
     );
-  });
+    if (!sortColumn) return base;
+    return [...base].sort((a, b) => {
+      if ((a.isNew || a.tempId) && !(b.isNew || b.tempId)) return -1;
+      if (!(a.isNew || a.tempId) && (b.isNew || b.tempId)) return 1;
+      const valA = a[sortColumn] ?? "";
+      const valB = b[sortColumn] ?? "";
+      return sortDirection === "asc"
+        ? String(valA).localeCompare(String(valB), undefined, { numeric: true })
+        : String(valB).localeCompare(String(valA), undefined, { numeric: true });
+    });
+  }, [salesTaxes, filteredGroups, searchValue, sortColumn, sortDirection]);
+
+  // --- Draft Store Hydration on Mount ---
+  useEffect(() => {
+    const draft = useDraftStore.getState().getDraft("manage-sales-taxes");
+    if (
+      draft &&
+      Array.isArray(draft.salesTaxes) &&
+      draft.salesTaxes.length > 0 &&
+      (draft.isDirty ||
+        draft.hasUnsaved ||
+        draft.salesTaxes.some(
+          (c) =>
+            c.isDirty ||
+            c.isNew ||
+            c.tempId ||
+            (c.accounts || []).some((a) => a.isDirty || a.isNew || a.tempId),
+        ))
+    ) {
+      setSalesTaxes(draft.salesTaxes);
+      if (draft.selectedTax) setSelectedTax(draft.selectedTax);
+      if (draft.selectedTaxCodes)
+        setSelectedTaxCodes(new Set(draft.selectedTaxCodes));
+      if (draft.selectedAccount) setSelectedAccount(draft.selectedAccount);
+      if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+      if (typeof draft.isAccountFormView === "boolean")
+        setIsAccountFormView(draft.isAccountFormView);
+      if (draft.activeSubTab) setActiveSubTab(draft.activeSubTab);
+    } else {
+      fetchSalesTaxes();
+    }
+  }, []);
+
+  // --- Auto-Save Draft to Zustand ---
+  const salesTaxesRef = useRef(salesTaxes);
+  const selectedTaxRef = useRef(selectedTax);
+  const selectedTaxCodesRef = useRef(selectedTaxCodes);
+  const selectedAccountRef = useRef(selectedAccount);
+  const isFormViewRef = useRef(isFormView);
+  const isAccountFormViewRef = useRef(isAccountFormView);
+  const activeSubTabRef = useRef(activeSubTab);
+
+  useEffect(() => {
+    salesTaxesRef.current = salesTaxes;
+    selectedTaxRef.current = selectedTax;
+    selectedTaxCodesRef.current = selectedTaxCodes;
+    selectedAccountRef.current = selectedAccount;
+    isFormViewRef.current = isFormView;
+    isAccountFormViewRef.current = isAccountFormView;
+    activeSubTabRef.current = activeSubTab;
+
+    const hasDirty = salesTaxes.some(
+      (c) =>
+        c.isDirty ||
+        c.isNew ||
+        c.tempId ||
+        (c.accounts || []).some((a) => a.isDirty || a.isNew || a.tempId),
+    );
+    if (hasDirty) {
+      useDraftStore.getState().saveDraft("manage-sales-taxes", {
+        salesTaxes,
+        selectedTax,
+        selectedTaxCodes: Array.from(selectedTaxCodes),
+        selectedAccount,
+        isFormView,
+        isAccountFormView,
+        activeSubTab,
+        isDirty: true,
+        hasUnsaved: true,
+      });
+    }
+  }, [
+    salesTaxes,
+    selectedTax,
+    selectedTaxCodes,
+    selectedAccount,
+    isFormView,
+    isAccountFormView,
+    activeSubTab,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      const cur = salesTaxesRef.current;
+      if (
+        cur &&
+        cur.some(
+          (c) =>
+            c.isDirty ||
+            c.isNew ||
+            c.tempId ||
+            (c.accounts || []).some((a) => a.isDirty || a.isNew || a.tempId),
+        )
+      ) {
+        useDraftStore.getState().saveDraft("manage-sales-taxes", {
+          salesTaxes: cur,
+          selectedTax: selectedTaxRef.current,
+          selectedTaxCodes: Array.from(selectedTaxCodesRef.current),
+          selectedAccount: selectedAccountRef.current,
+          isFormView: isFormViewRef.current,
+          isAccountFormView: isAccountFormViewRef.current,
+          activeSubTab: activeSubTabRef.current,
+          isDirty: true,
+          hasUnsaved: true,
+        });
+      }
+    };
+  }, []);
 
   const visibleAccounts = selectedTax ? (selectedTax.accounts || []) : [];
 
@@ -1616,13 +1854,15 @@ export const ManageSalesTaxes = () => {
           isFormView={isFormView}
           handleNavigate={handleNavigate}
           jumpToCode={jumpToCode}
-          totalRecords={filteredSalesTaxes.length}
+          totalRecords={displaySalesTaxes.length}
           selectedRow={selectedTax}
           selectedCount={selectedTaxCodes.size}
           searchValue={searchValue}
           setSearchValue={setSearchValue}
           loading={loading}
           clipboard={clipboard}
+          showFindReplace={showFindReplace}
+          onToggleFindReplace={() => setShowFindReplace(!showFindReplace)}
           actions={{
             onAdd: handleAdd,
             onSave: handleSaveAll,
@@ -1631,8 +1871,8 @@ export const ManageSalesTaxes = () => {
             onClear: handleDiscard,
             onPaste: handlePaste,
             onToggleView: () => {
-              if (!isFormView && !selectedTax && filteredSalesTaxes.length > 0) {
-                const firstRecord = filteredSalesTaxes[0];
+              if (!isFormView && !selectedTax && displaySalesTaxes.length > 0) {
+                const firstRecord = displaySalesTaxes[0];
                 setSelectedTax(firstRecord);
                 setSelectedTaxCodes(new Set([getTaxKey(firstRecord)]));
               }
@@ -1642,18 +1882,105 @@ export const ManageSalesTaxes = () => {
           currentIndex={currentIndex}
         />
 
+        {/* Find & Replace Bar (Available in both Form and Table views) */}
+        {showFindReplace && (
+          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                <select
+                  value={searchColumn}
+                  onChange={(e) => setSearchColumn(e.target.value)}
+                  className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                >
+                  <option value="all">All Columns</option>
+                  {taxColumns.map((col) => (
+                    <option key={col.key || col.id} value={col.key || col.id}>
+                      {col.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Find..."
+                  value={findValue}
+                  onChange={(e) => setFindValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleFind()}
+                  className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                />
+              </div>
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Replace with..."
+                  value={replaceValue}
+                  disabled={searchColumn === "taxCode"}
+                  onChange={(e) => setReplaceValue(e.target.value)}
+                  className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                    searchColumn === "taxCode"
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                      : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                  }`}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleFind}
+                className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+              >
+                Find / Filter
+              </button>
+
+              <button
+                type="button"
+                disabled={searchColumn === "taxCode"}
+                onClick={handleReplaceAll}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                  searchColumn === "taxCode"
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                }`}
+              >
+                Replace All
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearFind}
+                className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFindReplace(false)}
+              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              title="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         <div className="mt-1.5 text-xs">
           {!isFormView ? (
             <div className="bg-white border border-gray-200 p-2">
               <ReusableTable
-                data={filteredSalesTaxes}
+                data={displaySalesTaxes}
                 columns={taxColumns}
-                selectedRows={filteredSalesTaxes.filter(c => selectedTaxCodes.has(getTaxKey(c)))}
+                selectedRows={displaySalesTaxes.filter(c => selectedTaxCodes.has(getTaxKey(c)))}
                 onSelectAll={(e) => {
                   if (e.target.checked) {
-                    setSelectedTaxCodes(new Set(filteredSalesTaxes.map(getTaxKey)));
-                    if (filteredSalesTaxes.length > 0) {
-                      setSelectedTax(filteredSalesTaxes[0]);
+                    setSelectedTaxCodes(new Set(displaySalesTaxes.map(getTaxKey)));
+                    if (displaySalesTaxes.length > 0) {
+                      setSelectedTax(displaySalesTaxes[0]);
                     }
                   } else {
                     setSelectedTaxCodes(new Set());

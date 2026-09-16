@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Navigate, useNavigate, Outlet } from "react-router-dom";
+import { Navigate, useNavigate, useLocation, Outlet } from "react-router-dom";
 import NavigationSidebar from "../components/NavigationSidebar";
 import TopBar from "../components/TopBar";
 import ChatBot from "../components/ChatBot";
+import RecentQuickSwitcher from "../components/RecentQuickSwitcher";
+import { useRecentStore } from "../store/useRecentStore";
+import { getRouteMeta } from "../utils/routeMeta";
 
 const Dashboard = ({ canView }) => {
   const [userName, setUserName] = useState("");
@@ -10,6 +13,19 @@ const Dashboard = ({ canView }) => {
   // hover state (existing)
   const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const addRecentPage = useRecentStore((state) => state.addRecentPage);
+
+  useEffect(() => {
+    if (location.pathname && location.pathname !== "/login" && location.pathname !== "/") {
+      const meta = getRouteMeta(location.pathname);
+      addRecentPage({
+        path: location.pathname,
+        title: meta.title,
+        category: meta.category,
+      });
+    }
+  }, [location.pathname, addRecentPage]);
 
   useEffect(() => {
     const userString = localStorage.getItem("currentUser");
@@ -42,45 +58,6 @@ const Dashboard = ({ canView }) => {
 
   const sidebarWidth = isHovered ? "w-[190px]" : "w-[56px]";
   return (
-    // <>
-    //   {/* Top Bar - Kept Fixed */}
-    //   <div className="fixed top-0 left-0 right-0 z-90 h-14 bg-white  flex items-center">
-    //     <TopBar fullName={userName} onLogout={handleLogout} />
-    //   </div>
-
-    //   {/* Main Container */}
-    //   <div className=" h-screen relative overflow-hidden bg-[#E6F2F5]">
-    //     {/* Sidebar Container */}
-    //     {/* <div className="group bg-white border-r border-gray-200 h-full w-[56px] hover:w-[190px] transition-all duration-300">
-    //       <NavigationSidebar isHovered={isHovered} isSidebarOpen=
-    //       {isSidebarOpen} setIsHovered={setIsHovered} setIsSidebarOpen={setIsSidebarOpen} />
-    //     </div> */}
-    //     <div
-    //       className={`group border  transition-all duration-300 ${sidebarWidth} `}
-    //       onMouseEnter={() => setIsHovered(true)}
-    //       onMouseLeave={() => setIsHovered(false)}
-    //     >
-    //       <NavigationSidebar
-    //         canView={canView}
-    //         isSidebarOpen={isSidebarOpen}
-    //         setIsSidebarOpen={setIsSidebarOpen}
-    //         isHovered={isHovered}
-    //         setIsHovered={setIsHovered}
-    //       />
-    //     </div>
-
-    //     {/* Main Content Area */}
-    //     <div
-    //       className={`flex-1 h-full p-4 ml-12  overflow-y-scroll`}
-    //       style={{ scrollbarGutter: "stable" }}
-    //     >
-    //       {/* This is where the sub-pages will render */}
-    //       <Outlet />
-    //     </div>
-    //     <ChatBot />
-    //   </div>
-    // </>
-
     <>
       {/* Top Bar - Fixed height h-14 (3.5rem) */}
       <div className="fixed top-0 left-0 right-0 z-50 h-14 bg-white flex items-center ">
@@ -112,10 +89,12 @@ const Dashboard = ({ canView }) => {
           <Outlet />
         </div>
 
-        {/* <ChatBot /> */}
+        {/* Quick Switcher Modal */}
+        <RecentQuickSwitcher />
       </div>
     </>
   );
 };
 
 export default Dashboard;
+

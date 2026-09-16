@@ -9111,7 +9111,7 @@
 
 // export default ManageAccountsPayableVouchers;
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { toast } from "react-toastify";
 import {
   MoreVertical,
@@ -9144,6 +9144,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ChevronDown,
+  Replace,
 } from "lucide-react";
 import {
   MainContainer,
@@ -9153,6 +9158,7 @@ import {
 import { ReusableTable } from "../helper/tableSection";
 import api from "../utils/api";
 import { backendUrl } from "./config";
+import { useDraftStore } from "../store/useDraftStore";
 
 const PaymentVoucherIcon = () => (
   <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm -mr-2.5 flex items-center justify-center">
@@ -9185,6 +9191,9 @@ const FormInput = ({
   checked,
   onChange,
   onBlur,
+  onKeyDown,
+  min,
+  max,
   readOnly,
   disabled,
   className = "",
@@ -9206,14 +9215,17 @@ const FormInput = ({
 
   if (isClickable) {
     return (
-      <div className="w-full flex items-center pt-0.5 pb-0.5">
-        <label className="flex items-center gap-2 px-2 py-1 rounded border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 cursor-pointer transition-all duration-150 select-none w-full">
+      <div className={`flex flex-col gap-1 w-full ${className}`}>
+        <span className="text-xs font-semibold text-slate-700 select-none invisible">
+          &nbsp;
+        </span>
+        <label className="flex items-center gap-2 px-2.5 h-[32px] rounded border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-all duration-150 select-none w-full">
           <input
             type={type}
             checked={checked}
             onChange={onChange}
             disabled={actualDisabled}
-            className="w-3.5 h-3.5 rounded border-slate-300 text-slate-700 focus:ring-[#17414d] cursor-pointer disabled:opacity-50 accent-[#17414d]"
+            className="w-3.5 h-3.5 rounded border-slate-300 text-[#1677e8] focus:ring-[#1677e8] cursor-pointer disabled:opacity-50 accent-[#1677e8]"
           />
           <span className="text-[11px] font-semibold text-slate-700">
             {label}
@@ -9239,10 +9251,13 @@ const FormInput = ({
             value={value ?? ""}
             onChange={onChange}
             onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            min={min}
+            max={max}
             readOnly={actualReadOnly}
             disabled={actualDisabled}
             placeholder={placeholder}
-            className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+            className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
               ${
                 actualReadOnly || actualDisabled
                   ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -9266,10 +9281,13 @@ const FormInput = ({
         value={value ?? ""}
         onChange={onChange}
         onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        min={min}
+        max={max}
         readOnly={actualReadOnly}
         disabled={actualDisabled}
         placeholder={placeholder}
-        className={`w-full px-2 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
+        className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${inputClassName}
           ${
             actualReadOnly || actualDisabled
               ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -9286,9 +9304,9 @@ const FormSearchSelect = ({
   value,
   searchTerm = "",
   setSearchTerm,
-  options,
+  options = [],
   onSelect,
-  displayKey,
+  displayKey = "name",
   secondaryKey,
   disabled,
   placeholder = "",
@@ -9296,19 +9314,20 @@ const FormSearchSelect = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [localSearch, setLocalSearch] = useState("");
+  const containerRef = useRef(null);
 
   const searchVal = setSearchTerm ? searchTerm : localSearch;
   const setSearchVal = setSearchTerm ? setSearchTerm : setLocalSearch;
 
   const selectedOption = options?.find((opt) => {
-    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey]];
-    return candidateKeys.some((key) => String(key) === String(value));
+    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey], opt.label, opt.code];
+    return candidateKeys.some((key) => key !== undefined && String(key).trim() === String(value).trim());
   });
 
   const filteredOptions = (options || []).filter((opt) => {
     const search = searchVal.toLowerCase().trim();
     if (!search) return true;
-    const mainValue = String(opt[displayKey] || "").toLowerCase();
+    const mainValue = String(opt[displayKey] || opt.label || opt.name || opt.value || "").toLowerCase();
     const subValue = secondaryKey
       ? String(opt[secondaryKey] || "").toLowerCase()
       : "";
@@ -9318,17 +9337,28 @@ const FormSearchSelect = ({
   const inputValue = isTyping
     ? searchVal
     : selectedOption
-      ? selectedOption[displayKey]
+      ? (selectedOption[displayKey] || selectedOption.label || selectedOption.name || selectedOption.value)
       : searchVal || value || "";
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setShowDropdown(false);
+        setIsTyping(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
-    <div className="flex flex-col gap-1 w-full relative">
+    <div ref={containerRef} className="flex flex-col gap-1 w-full relative">
       {label && (
         <span className="text-xs font-semibold text-slate-700 select-none">
           {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
         </span>
       )}
-      <div className="relative">
+      <div className="relative w-full">
         <input
           type="text"
           disabled={disabled}
@@ -9339,13 +9369,8 @@ const FormSearchSelect = ({
             setSearchVal(e.target.value);
             setShowDropdown(true);
           }}
-          onBlur={() => {
-            setTimeout(() => {
-              setIsTyping(false);
-            }, 200);
-          }}
           onFocus={() => !disabled && setShowDropdown(true)}
-          className={`w-full pl-2 pr-8 py-0.5 rounded border text-[11px] font-medium transition-all duration-150 outline-none
+          className={`w-full h-[32px] pl-2.5 pr-8 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none
             ${
               disabled
                 ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -9353,45 +9378,47 @@ const FormSearchSelect = ({
             }`}
         />
         <div
-          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400"
+          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center"
           onClick={() => !disabled && setShowDropdown(!showDropdown)}
         >
-          <Search size={12} />
+          <ChevronDown size={14} />
         </div>
 
         {showDropdown && !disabled && (
-          <>
-            <div className="absolute left-0 top-full z-[100] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-40 overflow-y-auto">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((opt, idx) => (
-                  <div
-                    key={idx}
-                    className="px-3 py-2 text-[11px] hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none font-medium text-slate-700"
-                    onClick={() => {
-                      onSelect(opt);
-                      setSearchVal("");
-                      setShowDropdown(false);
-                    }}
-                  >
-                    <span>{opt[displayKey]}</span>
-                    {secondaryKey && opt[secondaryKey] && (
-                      <span className="text-slate-400 ml-2">
-                        ({opt[secondaryKey]})
-                      </span>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="px-3 py-4 text-[11px] text-slate-400 italic text-center">
-                  No matches
+          <div
+            className="absolute left-0 top-full z-[999] w-full mt-1 bg-white border border-slate-200 rounded-md shadow-xl overflow-y-auto custom-scrollbar"
+            style={{ maxHeight: "160px", overflowY: "auto" }}
+          >
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt, idx) => (
+                <div
+                  key={idx}
+                  className="px-3 py-2 text-[11px] hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none font-medium text-slate-700 flex items-center justify-between"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(opt);
+                    setSearchVal("");
+                    setIsTyping(false);
+                    setShowDropdown(false);
+                  }}
+                >
+                  <span>{opt[displayKey] || opt.label || opt.name || opt.value}</span>
+                  {secondaryKey && opt[secondaryKey] && (
+                    <span className="text-slate-400 ml-2 text-[10px]">
+                      ({opt[secondaryKey]})
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-            <div
-              className="fixed inset-0 z-[90]"
-              onClick={() => setShowDropdown(false)}
-            />
-          </>
+              ))
+            ) : (
+              <div className="px-3 py-3 text-[11px] text-slate-400 italic text-center">
+                No matches
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -9399,8 +9426,8 @@ const FormSearchSelect = ({
 };
 
 const masterColumns = [
-  { id: "voucher", key: "voucher", label: "Voucher", required: true },
-  { id: "fiscalYear", key: "fiscalYear", label: "Fiscal Year", required: true },
+  { id: "voucher", key: "voucher", label: "Voucher", required: true, readOnly: true, readOnlyIfExisting: true },
+  { id: "fiscalYear", key: "fiscalYear", label: "Fiscal Year", required: true, readOnly: true, readOnlyIfExisting: true },
   { id: "period", key: "period", label: "Period", required: true },
   { id: "subperiod", key: "subperiod", label: "Subperiod", required: true },
   { id: "vendor", key: "vendor", label: "Vendor", required: true },
@@ -10974,6 +11001,62 @@ const ManageAccountsPayableVouchers = () => {
   const [searchValue, setSearchValue] = useState("");
   const [showVoucherDetail, setShowVoucherDetail] = useState(false);
 
+  // Sorting & Find/Replace State
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [searchColumn, setSearchColumn] = useState("all");
+  const [findValue, setFindValue] = useState("");
+  const [replaceValue, setReplaceValue] = useState("");
+  const [filteredGroups, setFilteredGroups] = useState([]);
+
+  const handleColumnSort = (columnKey) => {
+    if (sortColumn === columnKey) {
+      if (sortDirection === "asc") setSortDirection("desc");
+      else {
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(columnKey);
+      setSortDirection("asc");
+    }
+  };
+
+  const renderSortIcon = (columnKey, label) => {
+    const isSorted = sortColumn === columnKey;
+    return (
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          handleColumnSort(columnKey);
+        }}
+        className="inline-flex items-center gap-1 cursor-pointer hover:text-blue-600 select-none group ml-1"
+        title={`Sort by ${label}`}
+      >
+        {isSorted ? (
+          sortDirection === "asc" ? (
+            <ArrowUp size={13} className="text-blue-600 font-bold" />
+          ) : (
+            <ArrowDown size={13} className="text-blue-600 font-bold" />
+          )
+        ) : (
+          <ArrowUpDown size={13} className="text-gray-400 group-hover:text-blue-600 opacity-60 group-hover:opacity-100" />
+        )}
+      </span>
+    );
+  };
+
+  const activeMasterColumns = useMemo(() => {
+    return masterColumns.map((col) => {
+      const colId = col.id || col.key;
+      return {
+        ...col,
+        sortIcon: colId ? renderSortIcon(colId, col.label) : undefined,
+      };
+    });
+  }, [sortColumn, sortDirection]);
+
   const [isChildFormView, setIsChildFormView] = useState(false);
   const [activeChildTab, setActiveChildTab] = useState("Account Info");
   const [childSearchTerms, setChildSearchTerms] = useState({
@@ -11141,10 +11224,7 @@ const ManageAccountsPayableVouchers = () => {
     const rec = initialMockRecords.map(updateHeaderBalances)[0];
     return rec || null;
   });
-  const [selectedIds, setSelectedIds] = useState(() => {
-    const rec = initialMockRecords.map(updateHeaderBalances)[0];
-    return new Set(rec ? [rec.id] : []);
-  });
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [clipboard, setClipboard] = useState([]);
 
   // Detail Table selection state
@@ -11310,7 +11390,6 @@ const ManageAccountsPayableVouchers = () => {
   };
 
   useEffect(() => {
-    loadVouchers();
     loadDetailReferenceData();
   }, []);
 
@@ -11937,6 +12016,7 @@ const handleVoucherNavigation = (direction) => {
         }
       }
 
+      useDraftStore.getState().clearDraft("manage-ap-vouchers");
       toast.success(response.data?.message || "Voucher saved successfully.");
     } catch (error) {
       const errorData = error.response?.data;
@@ -11950,6 +12030,8 @@ const handleVoucherNavigation = (direction) => {
   };
 
   const handleDiscard = () => {
+    useDraftStore.getState().clearDraft("manage-ap-vouchers");
+    loadVouchers();
     toast.info("Unsaved changes discarded.");
   };
 
@@ -12279,6 +12361,231 @@ const handleVoucherNavigation = (direction) => {
     });
     toast.info("Unsaved line changes discarded.");
   };
+
+  // --- Find & Replace Handlers ---
+  const handleFind = () => {
+    if (!findValue.trim()) {
+      setFilteredGroups([]);
+      return toast.info("Search filter cleared.");
+    }
+    const term = findValue.toLowerCase().trim();
+    const matches = records.filter((row) => {
+      if (searchColumn !== "all") {
+        return String(row[searchColumn] ?? "").toLowerCase().includes(term);
+      }
+      return masterColumns.some((col) => {
+        const val = row[col.key || col.id];
+        return val !== undefined && val !== null && String(val).toLowerCase().includes(term);
+      });
+    });
+
+    setFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching records found.");
+    } else {
+      setSelectedIds(new Set([getRowKey(matches[0])]));
+      selectRecord(matches[0]);
+      toast.success(`Found ${matches.length} matching record(s).`);
+    }
+  };
+
+  const handleReplaceAll = () => {
+    if (searchColumn === "voucher" || searchColumn === "fiscalYear") {
+      return toast.warn("Voucher and Fiscal Year cannot be modified via Replace.");
+    }
+    if (!findValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = findValue.trim();
+    let replaceCount = 0;
+
+    const targetList = filteredGroups.length > 0 ? filteredGroups : records;
+    const targetKeys = new Set(targetList.map((r) => getRowKey(r)));
+
+    const updated = records.map((row) => {
+      if (!targetKeys.has(getRowKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        searchColumn === "all"
+          ? masterColumns
+              .filter(
+                (c) =>
+                  c.key !== "voucher" &&
+                  c.key !== "fiscalYear" &&
+                  c.type !== "checkbox" &&
+                  !c.readOnly
+              )
+              .map((c) => c.key || c.id)
+          : [searchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (colKey === "voucher" || colKey === "fiscalYear") return;
+        if (
+          typeof updatedRow[colKey] === "string" &&
+          updatedRow[colKey].toLowerCase().includes(term.toLowerCase())
+        ) {
+          const regex = new RegExp(
+            term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+            "gi"
+          );
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, replaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      setRecords(updated);
+      if (selectedRow) {
+        const found = updated.find((r) => getRowKey(r) === getRowKey(selectedRow));
+        if (found) {
+          setSelectedRow(found);
+          setSelectedIds(new Set([getRowKey(found)]));
+        }
+      }
+      if (filteredGroups.length > 0) {
+        setFilteredGroups(filteredGroups.map(fg => updated.find(u => getRowKey(u) === getRowKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleClearFind = () => {
+    setFindValue("");
+    setReplaceValue("");
+    setFilteredGroups([]);
+  };
+
+  // --- Memoized Table & Form Data ---
+  const displayRecords = useMemo(() => {
+    const base = filteredGroups.length > 0 ? filteredGroups : (
+      searchValue.trim() ? records.filter((r) => {
+        const term = searchValue.toLowerCase().trim();
+        return (
+          String(r.voucher || "").toLowerCase().includes(term) ||
+          String(r.invoiceNumber || "").toLowerCase().includes(term) ||
+          String(r.vendor || "").toLowerCase().includes(term) ||
+          String(r.vendorName || "").toLowerCase().includes(term)
+        );
+      }) : records
+    );
+    if (!sortColumn) return base;
+    return [...base].sort((a, b) => {
+      if ((a.isNew || a.tempId) && !(b.isNew || b.tempId)) return -1;
+      if (!(a.isNew || a.tempId) && (b.isNew || b.tempId)) return 1;
+      const valA = a[sortColumn] ?? "";
+      const valB = b[sortColumn] ?? "";
+
+      // Date comparison (Invoice Date, Due Date, Discount Date, etc.)
+      const dateA = Date.parse(valA);
+      const dateB = Date.parse(valB);
+      if (!isNaN(dateA) && !isNaN(dateB) && typeof valA === "string" && valA.length >= 8 && typeof valB === "string" && valB.length >= 8) {
+        return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
+      }
+
+      // Number comparison
+      const numA = Number(valA);
+      const numB = Number(valB);
+      if (!isNaN(numA) && !isNaN(numB) && String(valA).trim() !== "" && String(valB).trim() !== "") {
+        return sortDirection === "asc" ? numA - numB : numB - numA;
+      }
+
+      // String comparison
+      return sortDirection === "asc"
+        ? String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: "base" })
+        : String(valB).localeCompare(String(valA), undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [records, filteredGroups, searchValue, sortColumn, sortDirection]);
+
+  // --- Draft Store Hydration on Mount ---
+  useEffect(() => {
+    const draft = useDraftStore.getState().getDraft("manage-ap-vouchers");
+    if (
+      draft &&
+      Array.isArray(draft.records) &&
+      draft.records.length > 0 &&
+      (draft.isDirty ||
+        draft.hasUnsaved ||
+        draft.records.some(
+          (r) => r.isDirty || r.isNew || r.tempId || (r.detailLines || []).some((l) => l.isDirty || l.isNew),
+        ))
+    ) {
+      setRecords(draft.records);
+      if (draft.selectedRow) setSelectedRow(draft.selectedRow);
+      if (draft.selectedIds) setSelectedIds(new Set(draft.selectedIds));
+      if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+    } else {
+      loadVouchers();
+    }
+  }, []);
+
+  // --- Auto-Save Draft to Zustand ---
+  const recordsRef = useRef(records);
+  const selectedRowRef = useRef(selectedRow);
+  const selectedIdsRef = useRef(selectedIds);
+  const isFormViewRef = useRef(isFormView);
+
+  useEffect(() => {
+    recordsRef.current = records;
+    selectedRowRef.current = selectedRow;
+    selectedIdsRef.current = selectedIds;
+    isFormViewRef.current = isFormView;
+
+    const hasDirty = records.some(
+      (r) =>
+        r.isDirty ||
+        r.isNew ||
+        r.tempId ||
+        (r.detailLines || []).some((l) => l.isDirty || l.isNew),
+    );
+    if (hasDirty) {
+      useDraftStore.getState().saveDraft("manage-ap-vouchers", {
+        records,
+        selectedRow,
+        selectedIds: Array.from(selectedIds),
+        isFormView,
+        isDirty: true,
+        hasUnsaved: true,
+      });
+    }
+  }, [records, selectedRow, selectedIds, isFormView]);
+
+  useEffect(() => {
+    return () => {
+      const cur = recordsRef.current;
+      if (
+        cur &&
+        cur.some(
+          (r) =>
+            r.isDirty ||
+            r.isNew ||
+            r.tempId ||
+            (r.detailLines || []).some((l) => l.isDirty || l.isNew),
+        )
+      ) {
+        useDraftStore.getState().saveDraft("manage-ap-vouchers", {
+          records: cur,
+          selectedRow: selectedRowRef.current,
+          selectedIds: Array.from(selectedIdsRef.current),
+          isFormView: isFormViewRef.current,
+          isDirty: true,
+          hasUnsaved: true,
+        });
+      }
+    };
+  }, []);
 
   const isDirty = records.some(
     (r) => r.isDirty || (r.detailLines || []).some((d) => d.isDirty),
@@ -13036,7 +13343,7 @@ const handleVoucherNavigation = (direction) => {
                         );
                       }
                     }}
-                    className="w-full px-2 py-0.5 rounded border text-[11px] font-medium bg-white border-slate-200 text-slate-800 outline-none hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all"
+                    className="w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium bg-white border-slate-200 text-slate-800 outline-none hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all"
                   />
                   <datalist id="taxabilityOptions">
                     <option value="T">T - Sales/VAT Taxable</option>
@@ -13051,7 +13358,7 @@ const handleVoucherNavigation = (direction) => {
                 </span>
                 <div className="w-3/5">
                   <select
-                    className="w-full px-2 py-0.5 rounded border text-[11px] font-medium bg-white border-slate-200 text-slate-800 outline-none hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all"
+                    className="w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium bg-white border-slate-200 text-slate-800 outline-none hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all"
                     value={selectedChildRow.taxVatCode || ""}
                     onChange={(e) =>
                       handleChildFieldChange(
@@ -13572,7 +13879,7 @@ const handleVoucherNavigation = (direction) => {
                     Goods/Services <span className="text-blue-600 font-bold ml-0.5">*</span>
                   </label>
                   <select
-                    className="border border-slate-200 outline-none p-1 rounded font-light text-[10px] flex-1 bg-white focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all"
+                    className="border border-slate-200 outline-none px-2.5 h-[32px] rounded text-[11px] font-medium flex-1 bg-white hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all text-slate-800"
                     value={selectedChildRow?.goodsServices || "G"}
                     onChange={(e) =>
                       handleChildFieldChange(
@@ -13648,11 +13955,22 @@ const handleVoucherNavigation = (direction) => {
         .payment-voucher-page .voucher-second-screen .voucher-nested-tab:hover { color:#125bc3 !important; background:transparent !important; }
         .payment-voucher-page .voucher-second-screen .voucher-nested-tab.active { font-weight:600; }
         .payment-voucher-page .voucher-second-screen .voucher-nested-tab + .voucher-nested-tab:before { content:"|"; position:absolute; left:0; color:#d0d7e2; font-weight:400; }
-        .payment-voucher-page input:not([type="checkbox"]):not([type="radio"]), .payment-voucher-page select, .payment-voucher-page textarea { border-color:#d6e0ea; }
-        .payment-voucher-page input:not([type="checkbox"]):not([type="radio"]), .payment-voucher-page select, .payment-voucher-page textarea { min-height:32px; border:0 !important; border-radius:4px !important; background:#f6f6f6 !important; color:#3c4043 !important; box-shadow:none !important; }
-        .payment-voucher-page input:not([type="checkbox"]):not([type="radio"]):focus, .payment-voucher-page select:focus, .payment-voucher-page textarea:focus { background:#f1f3f4 !important; outline:none !important; box-shadow:none !important; }
-        .payment-voucher-page .flex.flex-col.gap-1.w-full > span, .payment-voucher-page .flex.flex-col.gap-1.w-full.relative > span { font-size:11px !important; font-weight:500 !important; line-height:16px !important; color:#5f6368 !important; }
-        .payment-voucher-page input:disabled, .payment-voucher-page select:disabled, .payment-voucher-page textarea:disabled { background:#eeeeee !important; color:#80868b !important; }
+        .payment-voucher-page .td-input[readonly] {
+          background-color: #f8fafc !important;
+          color: #94a3b8 !important;
+          border-color: #e2e8f0 !important;
+          cursor: not-allowed !important;
+          pointer-events: none !important;
+          user-select: none !important;
+        }
+        .payment-voucher-page .td-input:focus,
+        .payment-voucher-page .td-input:focus-visible,
+        .payment-voucher-page .td-input:focus-within,
+        .payment-voucher-page .td-input:active {
+          outline: none !important;
+          box-shadow: none !important;
+          border-color: transparent !important;
+        }
         .payment-voucher-page .voucher-content-shell { border:0 !important; padding:0 !important; background:transparent !important; }
         .payment-voucher-page .voucher-content-shell > .space-y-4 { gap:12px !important; }
         .payment-voucher-page .voucher-secondary-trigger { margin:0; border-top:1px solid #e5e7eb; border-bottom:0; background:#fff; padding:8px 4px 7px; }
@@ -13842,11 +14160,11 @@ const handleVoucherNavigation = (direction) => {
   {/* Count */}
   <span className="voucher-count">
     {selectedRow
-      ? records.findIndex(
+      ? displayRecords.findIndex(
           (record) => getRowKey(record) === getRowKey(selectedRow)
         ) + 1
       : 0}{" "}
-    / {records.length}
+    / {displayRecords.length}
   </span>
 
   {/* Next Voucher */}
@@ -13912,6 +14230,15 @@ const handleVoucherNavigation = (direction) => {
 
             <button
               type="button"
+              onClick={() => setShowFindReplace(!showFindReplace)}
+              className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
+              title="Find & Replace"
+            >
+              <Replace size={14} /> Find/Replace
+            </button>
+
+            <button
+              type="button"
               onClick={handleDiscard}
               className="voucher-head-btn"
             >
@@ -13953,16 +14280,103 @@ const handleVoucherNavigation = (direction) => {
 
       {/* ORIGINAL CONTENT, RESTYLED TO THE NEW UI */}
       <div className="px-4 pb-4 pt-3 lg:px-4">
+        {/* Find & Replace Bar (Available in both Form and Table views) */}
+        {showFindReplace && (
+          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                <select
+                  value={searchColumn}
+                  onChange={(e) => setSearchColumn(e.target.value)}
+                  className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                >
+                  <option value="all">All Columns</option>
+                  {masterColumns.map((col) => (
+                    <option key={col.key || col.id} value={col.key || col.id}>
+                      {col.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Find..."
+                  value={findValue}
+                  onChange={(e) => setFindValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleFind()}
+                  className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                />
+              </div>
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Replace with..."
+                  value={replaceValue}
+                  disabled={searchColumn === "voucher" || searchColumn === "fiscalYear"}
+                  onChange={(e) => setReplaceValue(e.target.value)}
+                  className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                    searchColumn === "voucher" || searchColumn === "fiscalYear"
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                      : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                  }`}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleFind}
+                className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+              >
+                Find / Filter
+              </button>
+
+              <button
+                type="button"
+                disabled={searchColumn === "voucher" || searchColumn === "fiscalYear"}
+                onClick={handleReplaceAll}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                  searchColumn === "voucher" || searchColumn === "fiscalYear"
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                }`}
+              >
+                Replace All
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearFind}
+                className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFindReplace(false)}
+              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              title="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         <div className="new-ui-content text-xs">
           {!isFormView ? (
             <div className="bg-white border border-gray-200 p-2">
               <ReusableTable
-                data={records}
-                columns={masterColumns}
-                selectedRows={selectedIds}
+                data={displayRecords}
+                columns={activeMasterColumns}
+                selectedRows={displayRecords.filter(r => selectedIds.has(getRowKey(r)))}
                 onSelectAll={(e) => {
                   if (e.target.checked) {
-                    setSelectedIds(new Set(records.map(getRowKey)));
+                    setSelectedIds(new Set(displayRecords.map(getRowKey)));
                   } else {
                     setSelectedIds(new Set());
                   }
@@ -14005,13 +14419,7 @@ const handleVoucherNavigation = (direction) => {
                       label="Voucher"
                       required
                       value={selectedRow?.voucher || ""}
-                      onChange={(e) =>
-                        handleFieldChange(
-                          activeRecordId,
-                          "voucher",
-                          e.target.value,
-                        )
-                      }
+                      readOnly={true}
                     />
                     <FormSearchSelect
                       label="Vendor"
@@ -14036,23 +14444,11 @@ const handleVoucherNavigation = (direction) => {
                   </div>
 
                   <div className="space-y-2">
-                    <FormSearchSelect
+                    <FormInput
                       label="Fiscal Year"
                       required
                       value={selectedRow?.fiscalYear || ""}
-                      options={[
-                        { value: "2027", label: "2027" },
-                        { value: "2025", label: "2025" },
-                        { value: "2026", label: "2026" },
-                      ]}
-                      displayKey="label"
-                      onSelect={(opt) =>
-                        handleFieldChange(
-                          activeRecordId,
-                          "fiscalYear",
-                          opt.value,
-                        )
-                      }
+                      readOnly={true}
                     />
                     <FormInput
                       label="Vendor Name"

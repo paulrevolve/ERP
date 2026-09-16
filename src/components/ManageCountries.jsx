@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   Globe,
   Search,
@@ -14,6 +14,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Replace,
 } from "lucide-react";
 import { backendUrl } from "./config";
 import api from "../utils/api";
@@ -21,6 +25,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { MainContainer, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
+import { useDraftStore } from "../store/useDraftStore";
 
 const FormSection = ({ title, children, className = "", headerRight }) => (
   <div className={`bg-white border border-[#e5e7eb] rounded-lg shadow-xs overflow-hidden ${className}`}>
@@ -56,6 +61,8 @@ const CountryToolbar = ({
   clipboard = [],
   selectedRow = null,
   selectedCount = 0,
+  onToggleFindReplace,
+  showFindReplace = false,
 }) => {
   const { onAdd, onCopy, onPaste, onClear, onDelete, onSave, onToggleView } = actions;
   const hasSelection = isFormView ? (!!selectedRow && totalRecords > 0) : (selectedCount > 0);
@@ -195,6 +202,17 @@ const CountryToolbar = ({
           </button>
         )}
 
+        {onToggleFindReplace && (
+          <button
+            type="button"
+            onClick={onToggleFindReplace}
+            className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
+            title="Find & Replace"
+          >
+            <Replace size={14} /> Find/Replace
+          </button>
+        )}
+
         {!buttonsDisable.includes("discard") && onClear && (
           <button
             type="button"
@@ -258,6 +276,9 @@ const FormInput = ({
   checked,
   onChange,
   onBlur,
+  onKeyDown,
+  min,
+  max,
   readOnly,
   disabled,
   className = "",
@@ -269,107 +290,58 @@ const FormInput = ({
   icon: Icon,
   onIconClick,
 }) => {
-  const [radioName] = useState(() => `radio-${label ? String(label).replace(/[^a-zA-Z0-9]/g, "") : "field"}-${Math.random().toString(36).substr(2, 9)}`);
-
-  let containerClassName = className;
-  if (type === "checkbox") {
-    containerClassName = className
-      .replace(/\bw-\[[^\]]+\]/g, "")
-      .replace(/\bw-\d+/g, "") + " w-auto min-w-fit flex-shrink-0";
-  }
-
-  if (type === "checkbox") {
-    const isChecked = checked === true || checked === "Y";
-    return (
-      <div className={`flex items-center gap-2.5 py-1 ${containerClassName}`}>
-        {label && (
-          <label className={`text-[11px] font-medium text-[#5f6368] select-none shrink-0 ${labelClassName || "min-w-[120px]"}`}>
-            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
-          </label>
-        )}
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
-            <input
-              type="radio"
-              name={radioName}
-              checked={isChecked}
-              onChange={() => {
-                if (onChange && !disabled) {
-                  onChange({ target: { checked: true, value: "Y" } });
-                }
-              }}
-              disabled={disabled}
-              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-            />
-            Yes
-          </label>
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-[#3c4043] select-none">
-            <input
-              type="radio"
-              name={radioName}
-              checked={!isChecked}
-              onChange={() => {
-                if (onChange && !disabled) {
-                  onChange({ target: { checked: false, value: "N" } });
-                }
-              }}
-              disabled={disabled}
-              className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-            />
-            No
-          </label>
-        </div>
-        {helperText && (
-          <p className="text-[10px] text-slate-400 pl-2 leading-tight select-none">{helperText}</p>
-        )}
-      </div>
-    );
-  }
-
-  const isClickable = type === "radio";
+  const isClickable = type === "checkbox" || type === "radio";
 
   if (isClickable) {
     return (
-      <div className={`flex items-center gap-2 py-1 ${className}`}>
-        <input
-          type={type}
-          checked={checked}
-          onChange={onChange}
-          disabled={disabled}
-          className="w-4 h-4 rounded-full border-slate-300 text-slate-900 cursor-pointer accent-blue-600"
-        />
-        {label && (
-          <label className={`text-[11px] font-medium text-[#5f6368] cursor-pointer select-none ${labelClassName}`}>
-            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
-          </label>
-        )}
+      <div className={`flex flex-col gap-1 w-full ${className}`}>
+        <span className="text-xs font-semibold text-slate-700 select-none invisible">
+          &nbsp;
+        </span>
+        <label className="flex items-center gap-2 px-2.5 h-[32px] rounded border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-all duration-150 select-none w-full">
+          <input
+            type={type}
+            checked={checked === true || checked === "Y"}
+            onChange={onChange}
+            disabled={disabled}
+            className="w-3.5 h-3.5 rounded border-slate-300 text-[#1677e8] focus:ring-[#1677e8] cursor-pointer disabled:opacity-50 accent-[#1677e8]"
+          />
+          <span className="text-[11px] font-semibold text-slate-700">
+            {label}
+          </span>
+        </label>
       </div>
     );
   }
 
   if (horizontal) {
     return (
-      <div className={`flex items-center gap-3 py-0.5 ${className}`}>
+      <div
+        className={`flex items-center justify-between gap-4 w-full ${className}`}
+      >
         {label && (
-          <label className={`text-[11px] font-medium text-[#5f6368] min-w-[110px] text-left select-none flex items-center gap-0.5 ${labelClassName}`}>
-            <span>{label}</span>
-            {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
-          </label>
+          <span className="text-[11px] font-semibold text-slate-700 select-none w-2/5 text-left">
+            {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+          </span>
         )}
-        <div className="relative flex-1 min-w-0 flex items-center">
+        <div className="w-3/5 relative flex items-center">
           <input
             type={type}
             value={value ?? ""}
             onChange={onChange}
             onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            min={min}
+            max={max}
             readOnly={readOnly}
             disabled={disabled}
             placeholder={placeholder}
-            className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
-              Icon ? "pr-8" : ""
-            } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
-              readOnly || disabled ? "cursor-default select-text" : "cursor-text"
-            }`}
+            className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${Icon ? "pr-8" : ""} ${inputClassName}
+              ${
+                readOnly || disabled
+                  ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+                  : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+              }`}
           />
           {Icon && (
             <div
@@ -389,10 +361,9 @@ const FormInput = ({
   return (
     <div className={`flex flex-col gap-1 w-full min-w-0 ${className}`}>
       {label && (
-        <label className={`text-[11px] font-medium text-[#5f6368] select-none flex items-center gap-0.5 whitespace-nowrap ${labelClassName}`}>
-          <span>{label}</span>
-          {required && <span className="text-blue-600 font-bold ml-0.5 select-none">*</span>}
-        </label>
+        <span className={`text-xs font-semibold text-slate-700 select-none ${labelClassName}`}>
+          {label} {required && <span className="text-blue-600 font-bold ml-0.5">*</span>}
+        </span>
       )}
       <div className="relative w-full flex items-center">
         <input
@@ -400,14 +371,18 @@ const FormInput = ({
           value={value ?? ""}
           onChange={onChange}
           onBlur={onBlur}
+          onKeyDown={onKeyDown}
+          min={min}
+          max={max}
           readOnly={readOnly}
           disabled={disabled}
           placeholder={placeholder}
-          className={`w-full h-8 text-[12px] font-normal px-2.5 py-1 rounded transition-all outline-none border-0 shadow-none ${
-            Icon ? "pr-8" : ""
-          } ${inputClassName} bg-[#f6f6f6] hover:bg-[#efefef] focus:bg-[#f1f3f4] text-[#3c4043] placeholder:text-gray-400 ${
-            readOnly || disabled ? "cursor-default select-text" : "cursor-text"
-          }`}
+          className={`w-full h-[32px] px-2.5 py-1 rounded border text-[11px] font-medium transition-all duration-150 outline-none ${Icon ? "pr-8" : ""} ${inputClassName}
+            ${
+              readOnly || disabled
+                ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
+                : "bg-white border-slate-200 text-slate-800 hover:border-slate-300 focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+            }`}
         />
         {Icon && (
           <div
@@ -506,6 +481,15 @@ const ManageCountry = () => {
 
   const [clipboard, setClipboard] = useState([]);
 
+  // --- Sorting & Find/Replace States ---
+  const [sortColumn, setSortColumn] = useState("countryCode");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [searchColumn, setSearchColumn] = useState("all");
+  const [findValue, setFindValue] = useState("");
+  const [replaceValue, setReplaceValue] = useState("");
+  const [filteredGroups, setFilteredGroups] = useState([]);
+
   // Level 2 - State State Variables
   const [selectedState, setSelectedState] = useState(null);
   const [selectedStateCodes, setSelectedStateCodes] = useState(new Set());
@@ -541,10 +525,267 @@ const ManageCountry = () => {
   const getStateKey = (row) => row ? (row.uniqueKey || row.tempId || row.stateCode) : "";
   const getPostalKey = (row) => row ? (row.uniqueKey || row.tempId || row.postalKey || row.postalCode) : "";
 
+  const handleColumnSort = (columnKey) => {
+    let nextDir = "asc";
+    if (sortColumn === columnKey) {
+      nextDir = sortDirection === "asc" ? "desc" : "asc";
+    }
+    setSortColumn(columnKey);
+    setSortDirection(nextDir);
+  };
+
+  const renderSortIcon = (columnKey, label) => (
+    <span
+      onClick={(e) => {
+        e.stopPropagation();
+        handleColumnSort(columnKey);
+      }}
+      className="cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-0.5 inline-flex items-center justify-center"
+      title={`Sort by ${label} (${sortColumn === columnKey && sortDirection === "desc" ? "Descending" : "Ascending"})`}
+    >
+      {sortColumn === columnKey ? (
+        sortDirection === "asc" ? (
+          <ArrowUp size={13} className="text-[#1677e8]" />
+        ) : (
+          <ArrowDown size={13} className="text-[#1677e8]" />
+        )
+      ) : (
+        <ArrowUpDown size={13} className="text-slate-400 hover:text-slate-600" />
+      )}
+    </span>
+  );
+
   const countryColumns = [
-    { id: "countryCode", key: "countryCode", label: "Country Code", required: true, type: "text", readOnlyIfExisting: true },
-    { id: "countryName", key: "countryName", label: "Country Name", required: true, type: "text" }
+    { id: "countryCode", key: "countryCode", label: "Country Code", required: true, type: "text", readOnlyIfExisting: true, sortIcon: renderSortIcon("countryCode", "Country Code") },
+    { id: "countryName", key: "countryName", label: "Country Name", required: true, type: "text", sortIcon: renderSortIcon("countryName", "Country Name") }
   ];
+
+  // --- Find & Replace Handlers ---
+  const handleFind = () => {
+    if (!findValue.trim()) {
+      setFilteredGroups([]);
+      return toast.info("Search filter cleared.");
+    }
+    const term = findValue.toLowerCase().trim();
+    const matches = countries.filter((row) => {
+      if (searchColumn === "countryCode") return String(row.countryCode || "").toLowerCase().includes(term);
+      if (searchColumn === "countryName") return String(row.countryName || "").toLowerCase().includes(term);
+      return (
+        String(row.countryCode || "").toLowerCase().includes(term) ||
+        String(row.countryName || "").toLowerCase().includes(term)
+      );
+    });
+
+    setFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching records found.");
+    } else {
+      setSelectedCountryCodes(new Set([getRowKey(matches[0])]));
+      setSelectedCountry(matches[0]);
+      toast.success(`Found ${matches.length} matching record(s).`);
+    }
+  };
+
+  const handleReplaceAll = () => {
+    if (searchColumn === "countryCode") {
+      return toast.warn("Country Code cannot be modified via Replace.");
+    }
+    if (!findValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = findValue.trim();
+    let replaceCount = 0;
+
+    const targetList = filteredGroups.length > 0 ? filteredGroups : countries;
+    const targetKeys = new Set(targetList.map((r) => getRowKey(r)));
+
+    const updated = countries.map((row) => {
+      if (!targetKeys.has(getRowKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        searchColumn === "all"
+          ? ["countryName"]
+          : searchColumn === "countryCode" && row.isNew
+          ? ["countryCode"]
+          : [searchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, replaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      setCountries(updated);
+      if (selectedCountry) {
+        const found = updated.find((r) => getRowKey(r) === getRowKey(selectedCountry));
+        if (found) {
+          setSelectedCountry(found);
+          setSelectedCountryCodes(new Set([getRowKey(found)]));
+        }
+      }
+      if (filteredGroups.length > 0) {
+        setFilteredGroups(filteredGroups.map(fg => updated.find(u => getRowKey(u) === getRowKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleClearFind = () => {
+    setFindValue("");
+    setReplaceValue("");
+    setFilteredGroups([]);
+  };
+
+  // --- Memoized Table & Form Data ---
+  const displayCountries = useMemo(() => {
+    const base = filteredGroups.length > 0 ? filteredGroups : (
+      searchValue.trim() ? countries.filter((c) => {
+        const term = searchValue.toLowerCase().trim();
+        return (
+          String(c.countryCode).toLowerCase().includes(term) ||
+          String(c.countryName).toLowerCase().includes(term)
+        );
+      }) : countries
+    );
+    if (!sortColumn) return base;
+    return [...base].sort((a, b) => {
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      const valA = a[sortColumn] ?? "";
+      const valB = b[sortColumn] ?? "";
+      return sortDirection === "asc"
+        ? String(valA).localeCompare(String(valB), undefined, { numeric: true })
+        : String(valB).localeCompare(String(valA), undefined, { numeric: true });
+    });
+  }, [countries, filteredGroups, searchValue, sortColumn, sortDirection]);
+
+  // --- Draft Store Hydration on Mount ---
+  useEffect(() => {
+    const draft = useDraftStore.getState().getDraft("manage-countries");
+    if (
+      draft &&
+      Array.isArray(draft.countries) &&
+      draft.countries.length > 0 &&
+      (draft.isDirty ||
+        draft.hasUnsaved ||
+        draft.countries.some(
+          (c) =>
+            c.isDirty ||
+            c.isNew ||
+            (c.states || []).some(
+              (s) =>
+                s.isDirty ||
+                s.isNew ||
+                (s.postalCodes || []).some((p) => p.isDirty || p.isNew),
+            ),
+        ))
+    ) {
+      setCountries(draft.countries);
+      if (draft.selectedCountry) setSelectedCountry(draft.selectedCountry);
+      if (draft.selectedCountryCodes)
+        setSelectedCountryCodes(new Set(draft.selectedCountryCodes));
+      if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+      if (typeof draft.isStateFormView === "boolean") setIsStateFormView(draft.isStateFormView);
+      if (typeof draft.isPostalFormView === "boolean") setIsPostalFormView(draft.isPostalFormView);
+    } else {
+      fetchCountries();
+    }
+  }, []);
+
+  // --- Auto-Save Draft to Zustand ---
+  const countriesRef = useRef(countries);
+  const selectedCountryRef = useRef(selectedCountry);
+  const selectedCountryCodesRef = useRef(selectedCountryCodes);
+  const isFormViewRef = useRef(isFormView);
+  const isStateFormViewRef = useRef(isStateFormView);
+  const isPostalFormViewRef = useRef(isPostalFormView);
+
+  useEffect(() => {
+    countriesRef.current = countries;
+    selectedCountryRef.current = selectedCountry;
+    selectedCountryCodesRef.current = selectedCountryCodes;
+    isFormViewRef.current = isFormView;
+    isStateFormViewRef.current = isStateFormView;
+    isPostalFormViewRef.current = isPostalFormView;
+
+    const hasDirty = countries.some(
+      (c) =>
+        c.isDirty ||
+        c.isNew ||
+        (c.states || []).some(
+          (s) =>
+            s.isDirty ||
+            s.isNew ||
+            (s.postalCodes || []).some((p) => p.isDirty || p.isNew),
+        ),
+    );
+    if (hasDirty) {
+      useDraftStore.getState().saveDraft("manage-countries", {
+        countries,
+        selectedCountry,
+        selectedCountryCodes: Array.from(selectedCountryCodes),
+        isFormView,
+        isStateFormView,
+        isPostalFormView,
+        isDirty: true,
+        hasUnsaved: true,
+      });
+    }
+  }, [
+    countries,
+    selectedCountry,
+    selectedCountryCodes,
+    isFormView,
+    isStateFormView,
+    isPostalFormView,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      const cur = countriesRef.current;
+      if (
+        cur &&
+        cur.some(
+          (c) =>
+            c.isDirty ||
+            c.isNew ||
+            (c.states || []).some(
+              (s) =>
+                s.isDirty ||
+                s.isNew ||
+                (s.postalCodes || []).some((p) => p.isDirty || p.isNew),
+            ),
+        )
+      ) {
+        useDraftStore.getState().saveDraft("manage-countries", {
+          countries: cur,
+          selectedCountry: selectedCountryRef.current,
+          selectedCountryCodes: Array.from(selectedCountryCodesRef.current),
+          isFormView: isFormViewRef.current,
+          isStateFormView: isStateFormViewRef.current,
+          isPostalFormView: isPostalFormViewRef.current,
+          isDirty: true,
+          hasUnsaved: true,
+        });
+      }
+    };
+  }, []);
 
   const stateColumns = [
     { id: "stateCode", key: "stateCode", label: "State Code", required: true, type: "text", readOnlyIfExisting: true },
@@ -662,10 +903,6 @@ const ManageCountry = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchCountries();
-  }, []);
 
   const loadCountryDetails = async (country) => {
     if (!country) return;
@@ -864,6 +1101,7 @@ const ManageCountry = () => {
         return;
       }
 
+      useDraftStore.getState().clearDraft("manage-countries");
       toast.success("Changes saved successfully!");
       await fetchCountries();
     } catch (error) {
@@ -957,6 +1195,7 @@ const ManageCountry = () => {
   };
 
   const handleDiscard = () => {
+    useDraftStore.getState().clearDraft("manage-countries");
     fetchCountries();
     toast.info("Unsaved changes discarded.");
   };
@@ -1554,13 +1793,15 @@ const ManageCountry = () => {
           isFormView={isFormView}
           handleNavigate={handleNavigate}
           jumpToCode={jumpToCode}
-          totalRecords={filteredCountries.length}
+          totalRecords={displayCountries.length}
           selectedRow={selectedCountry}
           selectedCount={selectedCountryCodes.size}
           searchValue={searchValue}
           setSearchValue={setSearchValue}
           loading={loading}
           clipboard={clipboard}
+          onToggleFindReplace={() => setShowFindReplace((prev) => !prev)}
+          showFindReplace={showFindReplace}
           actions={{
             onAdd: handleAdd,
             onSave: handleSaveAll,
@@ -1569,8 +1810,8 @@ const ManageCountry = () => {
             onClear: handleDiscard,
             onPaste: handlePaste,
             onToggleView: () => {
-              if (!isFormView && !selectedCountry && filteredCountries.length > 0) {
-                const firstRecord = filteredCountries[0];
+              if (!isFormView && !selectedCountry && displayCountries.length > 0) {
+                const firstRecord = displayCountries[0];
                 setSelectedCountry(firstRecord);
                 setSelectedCountryCodes(new Set([getRowKey(firstRecord)]));
               }
@@ -1580,13 +1821,97 @@ const ManageCountry = () => {
           currentIndex={currentIndex}
         />
 
+        {/* Find & Replace Bar (Available in both Form and Table views) */}
+        {showFindReplace && (
+          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                <select
+                  value={searchColumn}
+                  onChange={(e) => setSearchColumn(e.target.value)}
+                  className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                >
+                  <option value="all">All Columns</option>
+                  <option value="countryCode">Country Code</option>
+                  <option value="countryName">Country Name</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Find..."
+                  value={findValue}
+                  onChange={(e) => setFindValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleFind()}
+                  className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                />
+              </div>
+
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  placeholder="Replace with..."
+                  value={replaceValue}
+                  disabled={searchColumn === "countryCode"}
+                  onChange={(e) => setReplaceValue(e.target.value)}
+                  className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                    searchColumn === "countryCode"
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                      : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                  }`}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleFind}
+                className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+              >
+                Find / Filter
+              </button>
+
+              <button
+                type="button"
+                disabled={searchColumn === "countryCode"}
+                onClick={handleReplaceAll}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                  searchColumn === "countryCode"
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                }`}
+              >
+                Replace All
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearFind}
+                className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFindReplace(false)}
+              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              title="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         <div className="mt-1.5 text-xs">
           {!isFormView ? (
             <div className="bg-white border border-gray-200 p-2">
               <ReusableTable
-                data={filteredCountries}
+                data={displayCountries}
                 columns={countryColumns}
-                selectedRows={filteredCountries.filter(c => selectedCountryCodes.has(getRowKey(c)))}
+                selectedRows={displayCountries.filter(c => selectedCountryCodes.has(getRowKey(c)))}
                 onSelectAll={(e) => {
                   if (e.target.checked) {
                     const allKeys = filteredCountries.map(getRowKey);

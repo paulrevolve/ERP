@@ -521,12 +521,13 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, X } from "lucide-react"; // Ensure this is imported for your custom select
+import { Search, X, ChevronDown } from "lucide-react"; // Ensure this is imported for your custom select
 
 const renderHeaderLabel = (col) => {
   if (!col) return null;
+  const isExplicitRequired = Boolean(col.required);
+
   if (typeof col.label === "string") {
-    const isExplicitRequired = Boolean(col.required);
     const hasAsterisk = col.label.trim().endsWith("*");
     const cleanText = hasAsterisk
       ? col.label.replace(/\s*\*+\s*$/, "")
@@ -534,31 +535,34 @@ const renderHeaderLabel = (col) => {
     const shouldShowAsterisk = isExplicitRequired || hasAsterisk;
 
     return (
-      <>
-        {cleanText}
+      <div className="inline-flex items-center gap-1.5 align-middle">
+        <span>{cleanText}</span>
         {shouldShowAsterisk && (
           <span
-            className="text-blue-600 font-bold ml-0.5 select-none"
+            className="text-blue-600 font-bold select-none"
             style={{ color: "#2563eb", fontWeight: "bold" }}
           >
             *
           </span>
         )}
-      </>
+        {col.sortIcon}
+      </div>
     );
   }
+
   return (
-    <>
+    <div className="inline-flex items-center gap-1.5 align-middle">
       {col.label}
-      {col.required && (
+      {isExplicitRequired && (
         <span
-          className="text-blue-600 font-bold ml-0.5 select-none"
+          className="text-blue-600 font-bold select-none"
           style={{ color: "#2563eb", fontWeight: "bold" }}
         >
           *
         </span>
       )}
-    </>
+      {col.sortIcon}
+    </div>
   );
 };
 
@@ -914,8 +918,11 @@ export const TableSearchSelect = ({
           onFocus={() => !disabled && setShowDropdown(true)}
           autoComplete="off"
         />
-        <div className="absolute right-0 px-1 cursor-pointer text-gray-400">
-          <Search size={10} />
+        <div
+          className="absolute right-1 cursor-pointer text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center"
+          onClick={() => !disabled && setShowDropdown((prev) => !prev)}
+        >
+          <ChevronDown size={12} />
         </div>
       </div>
 
