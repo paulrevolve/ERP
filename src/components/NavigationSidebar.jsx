@@ -224,7 +224,7 @@ const NavigationSidebar = ({ canView, isSidebarOpen, setIsSidebarOpen }) => {
                   permission: "fiscalYear",
                 },
                 {
-                  label: "Accounting Period",
+                  label: "Period",
                   path: "/dashboard/manage-accountingperiod",
                   permission: "fiscalYear",
                 },
