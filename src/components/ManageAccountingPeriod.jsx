@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { backendUrl } from "./config";
 import { toast } from "react-toastify";
 import api from "../utils/api";
@@ -26,6 +27,7 @@ import {
 import ReusableTable from "../helper/tableSection";
 import CustomDatePicker from "./CustomeDatePicker";
 import { useDraftStore } from "../store/useDraftStore";
+import { useRecentStore } from "../store/useRecentStore";
 
 const FormSection = ({ title, children, className = "" }) => {
   return (
@@ -149,16 +151,17 @@ const FormInput = ({
 
 const FormSearchSelect = ({
   label,
-  required,
   value,
   searchTerm = "",
   setSearchTerm,
-  options,
+  options = [],
   onSelect,
-  displayKey,
+  onInputChange,
+  displayKey = "name",
   secondaryKey,
   disabled,
   placeholder = "",
+  required,
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -168,15 +171,28 @@ const FormSearchSelect = ({
   const searchVal = setSearchTerm ? searchTerm : localSearch;
   const setSearchVal = setSearchTerm ? setSearchTerm : setLocalSearch;
 
-  const selectedOption = options?.find((opt) => {
-    const candidateKeys = [opt.value, opt[displayKey], opt[secondaryKey], opt.statusCd, opt.adjustmentCode];
-    return candidateKeys.some((key) => key !== undefined && String(key).trim() === String(value).trim());
+  const selectedOption = (options || []).find((opt) => {
+    const candidateKeys = [
+      opt.value,
+      opt[displayKey],
+      opt[secondaryKey],
+      opt.label,
+      opt.code,
+      opt.statusCd,
+      opt.adjustmentCode,
+      opt.fyCd,
+    ];
+    return candidateKeys.some(
+      (key) =>
+        key !== undefined &&
+        String(key).trim().toLowerCase() === String(value || "").trim().toLowerCase(),
+    );
   });
 
   const filteredOptions = (options || []).filter((opt) => {
     const search = searchVal.toLowerCase().trim();
     if (!search) return true;
-    const mainValue = String(opt[displayKey] || "").toLowerCase();
+    const mainValue = String(opt[displayKey] || opt.label || opt.name || opt.value || opt.fyCd || "").toLowerCase();
     const subValue = secondaryKey
       ? String(opt[secondaryKey] || "").toLowerCase()
       : "";
@@ -186,7 +202,7 @@ const FormSearchSelect = ({
   const inputValue = isTyping
     ? searchVal
     : selectedOption
-      ? selectedOption[displayKey]
+      ? (selectedOption[displayKey] || selectedOption.label || selectedOption.name || selectedOption.fyCd)
       : searchVal || value || "";
 
   useEffect(() => {
@@ -216,6 +232,9 @@ const FormSearchSelect = ({
           onChange={(e) => {
             setIsTyping(true);
             setSearchVal(e.target.value);
+            if (onInputChange) {
+              onInputChange(e.target.value);
+            }
             setShowDropdown(true);
           }}
           onFocus={() => !disabled && setShowDropdown(true)}
@@ -275,6 +294,8 @@ const FormSearchSelect = ({
 };
 
 const ManageAccountingPeriod = ({ canEdit }) => {
+  const navigate = useNavigate();
+
   // --- Data States ---
   const [fycd, setFycd] = useState([]);
   const [selectedFycdRow, setSelectedFycdRow] = useState(null);
@@ -294,12 +315,10 @@ const ManageAccountingPeriod = ({ canEdit }) => {
   const [searchColumn, setSearchColumn] = useState("all");
   const [searchValue, setSearchValue] = useState("");
   const [replaceValue, setReplaceValue] = useState("");
-  const [isReplaceMode, setIsReplaceMode] = useState(false);
 
   const [fiscalYearOpt, setFiscalYearOpt] = useState([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerRowId, setDatePickerRowId] = useState(null);
-  const [data, setData] = useState([]);
 
   const [activeView, setActiveView] = useState(false);
   const [moduleProMapping, setModuleProMapping] = useState([]);
@@ -330,8 +349,8 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     { statusCd: "C", name: "Closed" },
   ];
 
+  // For when Adjustment Flag is checked ("Y"), N/A is not acceptable.
   const adjRateOpt = [
-    { adjustmentCode: "N", name: "N/A" },
     { adjustmentCode: "I", name: "Interim" },
     { adjustmentCode: "F", name: "Final" },
   ];
@@ -414,10 +433,11 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       sortIcon: renderSortIcon("fyCd", "Fiscal Year"),
     },
     {
-      label: "Period No",
+      label: "Period",
       key: "periodNo",
       required: true,
-      sortIcon: renderSortIcon("periodNo", "Period No"),
+      readOnlyIfExisting: true,
+      sortIcon: renderSortIcon("periodNo", "Period"),
     },
     {
       label: "Period End Date",
@@ -438,7 +458,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       sortIcon: renderSortIcon("statusName", "Status"),
     },
     {
-      label: "Adj Period",
+      label: "Adjustment Flag",
       key: "isAdjustment",
       type: "checkbox",
       value: (row) => row.isAdjustment === "Y",
@@ -448,7 +468,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       },
     },
     {
-      label: "Adj Rate Type",
+      label: "Adjustment Type",
       key: "rateName",
       type: "search-select",
       options: adjRateOpt,
@@ -458,7 +478,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         handleFieldChange(id, "rateName", opt.name);
       },
       isDisabled: (row) => row.isAdjustment !== "Y",
-      sortIcon: renderSortIcon("rateName", "Adj Rate Type"),
+      sortIcon: renderSortIcon("rateName", "Adjustment Type"),
     },
   ];
 
@@ -532,21 +552,29 @@ const ManageAccountingPeriod = ({ canEdit }) => {
 
       setFiscalYearOpt(rawFiscalYears);
 
-      const enrichedData = rawPeriods.map((item) => ({
-        ...item,
-        tableRowKey: `${item.fyCd}_${item.periodNo}`,
-        statusName:
-          statusOpt.find((o) => o.statusCd === item.statusCd)?.name ||
-          (item.statusCd === "C" ? "Closed" : item.statusCd === "O" ? "Open" : "Not Available"),
-        rateName:
-          adjRateOpt.find((o) => o.adjustmentCode === item.adjustmentCode)
-            ?.name || "N/A",
-        isDirty: false,
-      }));
-
-      setFycd(() => {
-        return [...enrichedData];
+      const enrichedData = rawPeriods.map((item) => {
+        const isAdj = item.isAdjustment === "Y" || item.isAdjustment === true;
+        return {
+          ...item,
+          tableRowKey: `${item.fyCd}_${item.periodNo}`,
+          statusName:
+            statusOpt.find((o) => o.statusCd === item.statusCd)?.name ||
+            (item.statusCd === "C"
+              ? "Closed"
+              : item.statusCd === "O"
+                ? "Open"
+                : "Not Available"),
+          isAdjustment: isAdj ? "Y" : "N",
+          rateName: isAdj
+            ? adjRateOpt.find((o) => o.adjustmentCode === item.adjustmentCode)
+                ?.name || ""
+            : "N/A",
+          adjustmentCode: isAdj ? item.adjustmentCode || "" : "N",
+          isDirty: false,
+        };
       });
+
+      setFycd(enrichedData);
       setSelectedRows([]);
       setSelectedFycdRow(enrichedData.length > 0 ? enrichedData[0] : null);
     } catch (e) {
@@ -560,18 +588,25 @@ const ManageAccountingPeriod = ({ canEdit }) => {
   const getRowKey = (row) => {
     if (row?.tableRowKey) return row.tableRowKey;
     if (row?.tempId) return row.tempId;
-    if (row?.fyCd && row?.periodNo !== undefined) return `${row.fyCd}_${row.periodNo}`;
+    if (row?.fyCd && row?.periodNo !== undefined)
+      return `${row.fyCd}_${row.periodNo}`;
     return "";
   };
 
   // --- Draft Store Hydration on Mount ---
   useEffect(() => {
     const draft = useDraftStore.getState().getDraft("manage-accounting-period");
-    if (draft && Array.isArray(draft.fycd) && draft.fycd.length > 0 && (draft.isDirty || draft.hasUnsaved)) {
+    if (
+      draft &&
+      Array.isArray(draft.fycd) &&
+      draft.fycd.length > 0 &&
+      (draft.isDirty || draft.hasUnsaved)
+    ) {
       setFycd(draft.fycd);
       if (draft.selectedFycdRow) setSelectedFycdRow(draft.selectedFycdRow);
       if (draft.selectedRows) setSelectedRows(draft.selectedRows);
-      if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+      if (typeof draft.isFormView === "boolean")
+        setIsFormView(draft.isFormView);
     } else {
       fetchData();
     }
@@ -635,8 +670,14 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     }
 
     let extraUpdates = {};
-    if (field === "isAdjustment" && finalValue === "N") {
-      extraUpdates = { adjustmentCode: "N", rateName: "N/A" };
+    if (field === "isAdjustment") {
+      const isChecked = value === true || value === "Y" || value === "true";
+      finalValue = isChecked ? "Y" : "N";
+      if (finalValue === "N") {
+        extraUpdates = { adjustmentCode: "N", rateName: "N/A" };
+      } else if (finalValue === "Y") {
+        extraUpdates = { adjustmentCode: "", rateName: "" };
+      }
     }
 
     setFycd((prev) =>
@@ -648,7 +689,8 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             ...extraUpdates,
             isDirty: true,
           };
-          updatedRow.tableRowKey = updatedRow.tempId || `${updatedRow.fyCd}_${updatedRow.periodNo}`;
+          updatedRow.tableRowKey =
+            updatedRow.tempId || `${updatedRow.fyCd}_${updatedRow.periodNo}`;
 
           if (getRowKey(selectedFycdRow || {}) === id) {
             setSelectedFycdRow(updatedRow);
@@ -676,7 +718,8 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               ...extraUpdates,
               isDirty: true,
             };
-            updatedRow.tableRowKey = updatedRow.tempId || `${updatedRow.fyCd}_${updatedRow.periodNo}`;
+            updatedRow.tableRowKey =
+              updatedRow.tempId || `${updatedRow.fyCd}_${updatedRow.periodNo}`;
 
             if (getRowKey(selectedFycdRow || {}) === id) {
               setSelectedFycdRow(updatedRow);
@@ -702,7 +745,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       tempId: tempKey,
       tableRowKey: tempKey,
       ...initialFormState,
-      fyCd: selectedFycdRow?.fyCd || (fiscalYearOpt.length > 0 ? fiscalYearOpt[0].fyCd : ""),
+      fyCd: "",
     };
     setFycd((prev) => [newRow, ...prev]);
     setSelectedFycdRow(newRow);
@@ -744,21 +787,43 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       return toast.warn("No changes to save");
     }
 
+    // Validation: Fiscal Year & Period are required
+    for (const row of changedRows) {
+      if (!row.fyCd || String(row.fyCd).trim() === "") {
+        return toast.error("Fiscal Year is required.");
+      }
+      if (row.periodNo === undefined || row.periodNo === null || String(row.periodNo).trim() === "") {
+        return toast.error(`Fiscal Year ${row.fyCd}: Period is required.`);
+      }
+      const isAdj = row.isAdjustment === "Y" || row.isAdjustment === true;
+      if (
+        isAdj &&
+        (!row.adjustmentCode ||
+          row.adjustmentCode === "N" ||
+          row.rateName === "N/A" ||
+          !row.rateName)
+      ) {
+        return toast.error(
+          `Period ${row.periodNo} (${row.fyCd}): Adjustment Type is mandatory when Adjustment Flag is checked. N/A is not acceptable.`,
+        );
+      }
+    }
+
     setLoading(true);
     try {
+      let apiSuccessMsg = "";
       if (changedRows.length > 0) {
-        await Promise.all(
+        const responses = await Promise.all(
           changedRows.map((row) => {
+            const isAdj =
+              row.isAdjustment === true || row.isAdjustment === "Y";
             const payload = {
               fyCd: row.fyCd,
               periodNo: row.periodNo,
               periodEndDate: row.periodEndDate,
               statusCd: row.statusCd,
-              adjustmentCode: row.adjustmentCode,
-              isAdjustment:
-                row.isAdjustment === true || row.isAdjustment === "Y"
-                  ? "Y"
-                  : "N",
+              adjustmentCode: isAdj ? row.adjustmentCode : "N",
+              isAdjustment: isAdj ? "Y" : "N",
               companyId: String(row.companyId) || "1",
               modifiedBy: user.name,
             };
@@ -773,6 +838,8 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             }
           }),
         );
+        const firstMsg = responses.find((r) => r?.data?.message)?.data?.message;
+        if (firstMsg) apiSuccessMsg = firstMsg;
       }
 
       if (isMappingDirty && moduleProMapping.length > 0) {
@@ -780,7 +847,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       }
 
       useDraftStore.getState().clearDraft("manage-accounting-period");
-      toast.success("All changes saved successfully");
+      toast.success(apiSuccessMsg || "All changes saved successfully");
       fetchData();
     } catch (e) {
       console.error("Save Error:", e);
@@ -807,6 +874,27 @@ const ManageAccountingPeriod = ({ canEdit }) => {
 
     setLoading(true);
     try {
+      // 1. Proactively verify if any child subperiod exists
+      try {
+        const subRes = await api.get(`${backendUrl}/api/sub-period`);
+        const allSubperiods = subRes.data || [];
+        for (const row of selectedRows) {
+          if (!row.tempId) {
+            const hasChild = allSubperiods.some(
+              (sp) =>
+                String(sp.fyCd).trim() === String(row.fyCd).trim() &&
+                String(sp.periodNo).trim() === String(row.periodNo).trim(),
+            );
+            if (hasChild) {
+              setLoading(false);
+              return toast.error("Child data exist for this period");
+            }
+          }
+        }
+      } catch (checkErr) {
+        console.warn("Child subperiod pre-check skipped", checkErr);
+      }
+
       await Promise.all(
         selectedRows.map((row) => {
           if (!row.tempId) {
@@ -835,7 +923,25 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       toast.success("Deleted successfully");
     } catch (e) {
       console.error("Delete Error:", e);
-      toast.error(e.response?.data?.message || "Delete failed");
+      const errMsg =
+        e.response?.data?.message ||
+        e.response?.data?.detail ||
+        e.response?.data?.error ||
+        String(e.message || "");
+
+      const isChildConstraint =
+        errMsg.toLowerCase().includes("reference") ||
+        errMsg.toLowerCase().includes("foreign key") ||
+        errMsg.toLowerCase().includes("subperiod") ||
+        errMsg.toLowerCase().includes("sub_period") ||
+        errMsg.toLowerCase().includes("child") ||
+        errMsg.toLowerCase().includes("constraint");
+
+      if (isChildConstraint) {
+        toast.error("Child data exist for this period");
+      } else {
+        toast.error("Delete failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -894,47 +1000,127 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         setIsMappingDirty(false);
       }
 
-      toast.info("Unsaved changes and new rows have been discarded.");
+      toast.info("Changes discarded");
     }
+  };
+
+  const handleCloseScreen = () => {
+    useDraftStore.getState().clearDraft("manage-accounting-period");
+    useRecentStore
+      .getState()
+      .removeRecentPage?.("/dashboard/manage-accountingperiod");
+    navigate("/dashboard");
   };
 
   // --- FIND & REPLACE LOGIC ---
   const handleFind = () => {
-    if (!searchValue.trim()) {
-      toast.warn("Please enter search text");
+    if (!searchValue || !searchValue.trim()) {
+      toast.warn("Please enter or select search value");
       return;
     }
+    const term = searchValue.toLowerCase().trim();
     const matches = fycd.filter((row) => {
+      if (searchColumn === "all") {
+        return (
+          String(row.fyCd || "").toLowerCase().includes(term) ||
+          String(row.periodNo || "").toLowerCase().includes(term) ||
+          String(row.periodEndDate || "").toLowerCase().includes(term) ||
+          String(row.statusName || "").toLowerCase().includes(term) ||
+          String(row.rateName || "").toLowerCase().includes(term) ||
+          (row.isAdjustment === "Y" && ("adjustment".includes(term) || "yes".includes(term) || "y".includes(term))) ||
+          (row.isAdjustment !== "Y" && ("no".includes(term) || "n".includes(term) || "uncheck".includes(term)))
+        );
+      }
+      if (searchColumn === "isAdjustment") {
+        const rowVal = row.isAdjustment === "Y" ? "Y" : "N";
+        return rowVal.toLowerCase() === term;
+      }
       const val = String(row[searchColumn] || "").toLowerCase();
-      return val.includes(searchValue.toLowerCase());
+      return val.includes(term);
     });
     if (matches.length === 0) {
       toast.info("No matching records found");
     } else {
-      toast.success(`Found ${matches.length} matching record(s)`);
-      setSelectedRows(matches);
-      if (matches.length > 0) {
-        setSelectedFycdRow(matches[0]);
-      }
+      toast.success(`${matches.length} matching record(s) found`);
+      setFilteredGroups(matches);
+      setSelectedFycdRow(matches[0]);
     }
   };
 
   const handleReplaceAll = () => {
-    if (searchColumn === "fyCd") {
-      toast.warn("Fiscal Year Code cannot be modified via Replace.");
+    if (searchColumn === "fyCd" || searchColumn === "periodNo") {
+      toast.warn("Fiscal Year and Period cannot be modified via Replace.");
       return;
     }
-    if (!searchValue.trim()) {
-      toast.warn("Please enter search text");
+    if (!searchValue || !searchValue.trim()) {
+      toast.warn("Please enter or select search value");
+      return;
+    }
+    if (!replaceValue || !replaceValue.trim()) {
+      toast.warn("Please enter or select replace value");
       return;
     }
     let replacedCount = 0;
+    const term = searchValue.trim();
+
     const updated = fycd.map((row) => {
+      if (searchColumn === "isAdjustment") {
+        const curVal = row.isAdjustment === "Y" ? "Y" : "N";
+        if (curVal.toLowerCase() === term.toLowerCase() || (term === "Y" && curVal === "Y") || (term === "N" && curVal === "N")) {
+          replacedCount++;
+          const targetAdj =
+            replaceValue.toUpperCase() === "Y" ||
+            replaceValue.toLowerCase() === "yes" ||
+            replaceValue.toLowerCase() === "true"
+              ? "Y"
+              : "N";
+          return {
+            ...row,
+            isAdjustment: targetAdj,
+            adjustmentCode: targetAdj === "N" ? "N" : (row.adjustmentCode === "N" ? "" : row.adjustmentCode),
+            rateName: targetAdj === "N" ? "N/A" : (row.rateName === "N/A" ? "" : row.rateName),
+            isDirty: true,
+          };
+        }
+        return row;
+      }
+
+      if (searchColumn === "rateName") {
+        const curVal = String(row.rateName || "");
+        if (curVal.toLowerCase() === term.toLowerCase()) {
+          replacedCount++;
+          const targetCode = replaceValue === "Interim" ? "I" : replaceValue === "Final" ? "F" : "N";
+          return {
+            ...row,
+            rateName: replaceValue,
+            adjustmentCode: targetCode,
+            isAdjustment: targetCode === "N" ? "N" : "Y",
+            isDirty: true,
+          };
+        }
+        return row;
+      }
+
+      if (searchColumn === "statusName") {
+        const curVal = String(row.statusName || "");
+        if (curVal.toLowerCase() === term.toLowerCase()) {
+          replacedCount++;
+          const targetCd = replaceValue === "Open" ? "O" : replaceValue === "Closed" ? "C" : "N";
+          return {
+            ...row,
+            statusName: replaceValue,
+            statusCd: targetCd,
+            isDirty: true,
+          };
+        }
+        return row;
+      }
+
       const val = String(row[searchColumn] || "");
-      if (val.toLowerCase().includes(searchValue.toLowerCase())) {
+      if (val.toLowerCase().includes(term.toLowerCase())) {
         replacedCount++;
         const regex = new RegExp(
-          searchValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
           "gi",
         );
         const newVal = val.replace(regex, replaceValue);
@@ -964,12 +1150,39 @@ const ManageAccountingPeriod = ({ canEdit }) => {
   const handleClearFind = () => {
     setSearchValue("");
     setReplaceValue("");
-    setSelectedRows(selectedFycdRow ? [selectedFycdRow] : []);
+    setFilteredGroups([]);
+    if (fycd.length > 0) {
+      setSelectedFycdRow(fycd[0]);
+    }
+    toast.info("Filter reset, showing all records");
   };
 
   // --- Memoized Sorted and Filtered Table Data ---
   const displayData = useMemo(() => {
-    const base = filteredGroups.length > 0 ? filteredGroups : fycd;
+    let base = filteredGroups.length > 0 ? filteredGroups : fycd;
+
+    if (searchTermProfiles && searchTermProfiles.trim()) {
+      const q = searchTermProfiles.toLowerCase().trim();
+      base = base.filter((row) => {
+        const fy = String(row.fyCd || "").toLowerCase();
+        const pno = String(row.periodNo || "").toLowerCase();
+        const pDate = String(row.periodEndDate || "").toLowerCase();
+        const stat = String(row.statusName || "").toLowerCase();
+        const rName = String(row.rateName || "").toLowerCase();
+        const isAdj = row.isAdjustment === "Y";
+
+        return (
+          fy.includes(q) ||
+          pno.includes(q) ||
+          pDate.includes(q) ||
+          stat.includes(q) ||
+          rName.includes(q) ||
+          (isAdj && ("adjustment".includes(q) || "yes".includes(q) || "y".includes(q))) ||
+          (!isAdj && ("no".includes(q) || "n".includes(q) || "uncheck".includes(q)))
+        );
+      });
+    }
+
     if (!sortColumn) return base;
 
     return [...base].sort((a, b) => {
@@ -988,9 +1201,22 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         ? String(valA).localeCompare(String(valB), undefined, { numeric: true })
         : String(valB).localeCompare(String(valA), undefined, { numeric: true });
     });
-  }, [filteredGroups, fycd, sortColumn, sortDirection]);
+  }, [filteredGroups, fycd, searchTermProfiles, sortColumn, sortDirection]);
 
-  let currentIndex = fycd.findIndex(
+  // Global search sync with active record in Form View
+  useEffect(() => {
+    if (searchTermProfiles && displayData.length > 0) {
+      const isCurrentInDisplay = displayData.some(
+        (r) => getRowKey(r) === getRowKey(selectedFycdRow),
+      );
+      if (!isCurrentInDisplay) {
+        setSelectedFycdRow(displayData[0]);
+        setSelectedRows([displayData[0]]);
+      }
+    }
+  }, [searchTermProfiles, displayData]);
+
+  let currentIndex = displayData.findIndex(
     (f) => getRowKey(f) === getRowKey(selectedFycdRow || {}),
   );
 
@@ -1004,11 +1230,11 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     } else if (dir === "start") {
       newIdx = 0;
     } else if (dir === "end") {
-      newIdx = fycd.length - 1;
+      newIdx = displayData.length - 1;
     }
 
-    if (newIdx >= 0 && newIdx < fycd.length) {
-      const targetRow = fycd[newIdx];
+    if (newIdx >= 0 && newIdx < displayData.length) {
+      const targetRow = displayData[newIdx];
       setSelectedFycdRow(targetRow);
       setSelectedRows([targetRow]);
       setShowDatePicker(false);
@@ -1041,7 +1267,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
   };
 
   const handleSelectAll = () => {
-    const dataToSelect = filteredGroups.length > 0 ? filteredGroups : fycd;
+    const dataToSelect = displayData;
 
     const allCurrentInViewSelected = dataToSelect.every((item) =>
       selectedRows.some((selected) => getRowKey(selected) === getRowKey(item)),
@@ -1078,7 +1304,8 @@ const ManageAccountingPeriod = ({ canEdit }) => {
   const handleAssignJournalEntires = async () => {
     let targetRow = selectedFycdRow;
     if (!targetRow && fycd.length > 0) {
-      targetRow = selectedRows && selectedRows.length > 0 ? selectedRows[0] : fycd[0];
+      targetRow =
+        selectedRows && selectedRows.length > 0 ? selectedRows[0] : fycd[0];
       setSelectedFycdRow(targetRow);
     }
 
@@ -1203,7 +1430,6 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         .payment-voucher-page .voucher-nested-tab:hover { background:#dbe9fd; }
         .payment-voucher-page .voucher-tab-pill { height:24px; padding:0 8px; border-radius:12px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; background:#f1f5f9; color:#475569; }
 
-        /* TABLE INPUT STYLING MATCHING MANAGECOUNTRIES & MANAGEFISCALYEAR */
         .payment-voucher-page .td-input[readonly] {
           background-color: #f8fafc !important;
           color: #94a3b8 !important;
@@ -1231,8 +1457,18 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             <span>›</span>
             <span className="font-medium text-[#4f5f76]">General Ledger</span>
             <span>›</span>
-            <span className="truncate">Accounting Periods</span>
+            <span className="truncate">Period</span>
           </div>
+
+          <button
+            type="button"
+            onClick={handleCloseScreen}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md border border-slate-200 transition-all cursor-pointer"
+            title="Close screen and clear cache"
+          >
+            <X size={14} />
+            <span>Close</span>
+          </button>
         </div>
       </div>
 
@@ -1241,7 +1477,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-2">
           <div className="flex items-center gap-3 min-w-0">
             <h1 className="text-[18px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
-              Accounting Period
+              Period
             </h1>
             <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
               <button
@@ -1263,17 +1499,19 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                 <ChevronLeft size={16} strokeWidth={1.5} />
               </button>
               <span className="voucher-count">
-                {selectedFycdRow && fycd.length > 0
-                  ? (currentIndex >= 0 ? currentIndex + 1 : 1)
+                {selectedFycdRow && displayData.length > 0
+                  ? currentIndex >= 0
+                    ? currentIndex + 1
+                    : 1
                   : 0}{" "}
-                / {fycd.length}
+                / {displayData.length}
               </span>
               <button
                 type="button"
                 className="voucher-nav-btn"
                 title="Next"
                 onClick={() => handleNavigate("next")}
-                disabled={currentIndex >= fycd.length - 1}
+                disabled={currentIndex >= displayData.length - 1}
               >
                 <ChevronRight size={16} strokeWidth={1.5} />
               </button>
@@ -1282,10 +1520,35 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                 className="voucher-nav-btn"
                 title="Last"
                 onClick={() => handleNavigate("end")}
-                disabled={currentIndex >= fycd.length - 1}
+                disabled={currentIndex >= displayData.length - 1}
               >
                 <ChevronsRight size={16} strokeWidth={1.5} />
               </button>
+            </div>
+
+            {/* Quick Search on Toolbar */}
+            <div className="relative flex items-center ml-2">
+              <Search
+                size={14}
+                className="absolute left-2.5 text-slate-400 pointer-events-none"
+              />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTermProfiles}
+                onChange={(e) => setSearchTermProfiles(e.target.value)}
+                className="h-8 w-44 pl-8 pr-7 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
+              />
+              {searchTermProfiles && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTermProfiles("")}
+                  className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1331,8 +1594,12 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             <button
               type="button"
               onClick={() => setShowFindReplace((prev) => !prev)}
-              className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
-              title="Find & Replace (Form & Table)"
+              className={`voucher-head-btn ${
+                showFindReplace
+                  ? "bg-slate-100 border-[#1677e8] text-[#1677e8]"
+                  : ""
+              }`}
+              title="Find & Replace"
             >
               <Replace size={14} />
               Find/Replace
@@ -1393,44 +1660,136 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                  <span className="text-[11px] font-semibold text-slate-600">
+                    In:
+                  </span>
                   <select
                     value={searchColumn}
-                    onChange={(e) => setSearchColumn(e.target.value)}
+                    onChange={(e) => {
+                      setSearchColumn(e.target.value);
+                      setSearchValue("");
+                      setReplaceValue("");
+                    }}
                     className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
                   >
                     <option value="all">All Columns</option>
                     <option value="fyCd">Fiscal Year</option>
-                    <option value="periodNo">Period No</option>
+                    <option value="periodNo">Period</option>
                     <option value="statusName">Status</option>
-                    <option value="rateName">Rate Type</option>
+                    <option value="isAdjustment">Adjustment Flag</option>
+                    <option value="rateName">Adjustment Type</option>
                   </select>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    placeholder="Find..."
-                    value={searchValue}
-                    onChange={(e) => setSearchValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleFind()}
-                    className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
-                  />
+                  {searchColumn === "isAdjustment" ? (
+                    <select
+                      value={searchValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSearchValue(val);
+                        if (!val) setFilteredGroups([]);
+                      }}
+                      className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">-- Find Flag --</option>
+                      <option value="Y">Checked (Y)</option>
+                      <option value="N">Unchecked (N)</option>
+                    </select>
+                  ) : searchColumn === "rateName" ? (
+                    <select
+                      value={searchValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSearchValue(val);
+                        if (!val) setFilteredGroups([]);
+                      }}
+                      className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">-- Find Type --</option>
+                      <option value="Interim">Interim</option>
+                      <option value="Final">Final</option>
+                      <option value="N/A">N/A</option>
+                    </select>
+                  ) : searchColumn === "statusName" ? (
+                    <select
+                      value={searchValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSearchValue(val);
+                        if (!val) setFilteredGroups([]);
+                      }}
+                      className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">-- Find Status --</option>
+                      <option value="Open">Open</option>
+                      <option value="Closed">Closed</option>
+                      <option value="Not Available">Not Available</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Find..."
+                      value={searchValue}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSearchValue(val);
+                        if (!val || !val.trim()) setFilteredGroups([]);
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && handleFind()}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                    />
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    placeholder="Replace with..."
-                    value={replaceValue}
-                    disabled={searchColumn === "fyCd"}
-                    onChange={(e) => setReplaceValue(e.target.value)}
-                    className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
-                      searchColumn === "fyCd"
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
-                        : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
-                    }`}
-                  />
+                  {searchColumn === "isAdjustment" ? (
+                    <select
+                      value={replaceValue}
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">-- Replace Flag --</option>
+                      <option value="Y">Checked (Y)</option>
+                      <option value="N">Unchecked (N)</option>
+                    </select>
+                  ) : searchColumn === "rateName" ? (
+                    <select
+                      value={replaceValue}
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">-- Replace Type --</option>
+                      <option value="Interim">Interim</option>
+                      <option value="Final">Final</option>
+                    </select>
+                  ) : searchColumn === "statusName" ? (
+                    <select
+                      value={replaceValue}
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">-- Replace Status --</option>
+                      <option value="Open">Open</option>
+                      <option value="Closed">Closed</option>
+                      <option value="Not Available">Not Available</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Replace with..."
+                      value={replaceValue}
+                      disabled={
+                        searchColumn === "fyCd" || searchColumn === "periodNo"
+                      }
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                        searchColumn === "fyCd" || searchColumn === "periodNo"
+                          ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                          : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                      }`}
+                    />
+                  )}
                 </div>
 
                 <button
@@ -1443,10 +1802,12 @@ const ManageAccountingPeriod = ({ canEdit }) => {
 
                 <button
                   type="button"
-                  disabled={searchColumn === "fyCd"}
+                  disabled={
+                    searchColumn === "fyCd" || searchColumn === "periodNo"
+                  }
                   onClick={handleReplaceAll}
                   className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
-                    searchColumn === "fyCd"
+                    searchColumn === "fyCd" || searchColumn === "periodNo"
                       ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                       : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
                   }`}
@@ -1494,25 +1855,47 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               <div className="voucher-panel voucher-master-card mb-4">
                 <div className="voucher-panel-title">
                   <span className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Accounting Period
+                    Period
                   </span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-x-5 gap-y-3">
                   <div className="space-y-2">
-                    <FormInput
-                      label="Fiscal Year"
-                      required
-                      value={selectedFycdRow?.fyCd || ""}
-                      readOnly={true}
-                    />
+                    {!selectedFycdRow?.tempId && !selectedFycdRow?.isNew ? (
+                      <FormInput
+                        label="Fiscal Year"
+                        required
+                        value={selectedFycdRow?.fyCd || ""}
+                        readOnly={true}
+                      />
+                    ) : (
+                      <FormSearchSelect
+                        label="Fiscal Year"
+                        required
+                        value={selectedFycdRow?.fyCd || ""}
+                        options={fiscalYearOpt}
+                        displayKey="fyCd"
+                        placeholder="Select or enter Fiscal Year"
+                        onInputChange={(val) => {
+                          const id = getRowKey(selectedFycdRow || {});
+                          handleFieldChange(id, "fyCd", val);
+                        }}
+                        onSelect={(opt) => {
+                          const id = getRowKey(selectedFycdRow || {});
+                          handleFieldChange(id, "fyCd", opt.fyCd);
+                        }}
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <FormInput
-                      label="Period Number"
+                      label="Period"
                       required
                       type="number"
                       min="0"
                       value={selectedFycdRow?.periodNo ?? ""}
+                      readOnly={
+                        !selectedFycdRow?.tempId && !selectedFycdRow?.isNew
+                      }
                       onChange={(e) => {
                         let val = e.target.value;
                         if (val !== "") {
@@ -1526,7 +1909,12 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                         );
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "-" || e.key === "e" || e.key === "+" || e.key === ".") {
+                        if (
+                          e.key === "-" ||
+                          e.key === "e" ||
+                          e.key === "+" ||
+                          e.key === "."
+                        ) {
                           e.preventDefault();
                         }
                       }}
@@ -1637,10 +2025,10 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                                 selectedFycdRow.periodEndDate.includes(
                                   "-",
                                 )
-                                ? selectedFycdRow.periodEndDate.split(
-                                    "T",
-                                  )[0]
-                                : ""
+                                  ? selectedFycdRow.periodEndDate.split(
+                                      "T",
+                                    )[0]
+                                  : ""
                               }
                               onChange={(date) => {
                                 handleFieldChange(
@@ -1675,7 +2063,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                   </div>
                   <div className="space-y-2">
                     <FormInput
-                      label="Adjustment Period"
+                      label="Adjustment Flag"
                       type="checkbox"
                       checked={selectedFycdRow?.isAdjustment === "Y"}
                       onChange={(e) =>
@@ -1689,11 +2077,12 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                   </div>
                   <div className="space-y-2">
                     <FormSearchSelect
-                      label="Adjustment Rate Type"
+                      label="Adjustment Type"
+                      required={selectedFycdRow?.isAdjustment === "Y"}
                       value={
-                        selectedFycdRow?.rateName ||
-                        selectedFycdRow?.adjustmentCode ||
-                        ""
+                        selectedFycdRow?.isAdjustment === "Y"
+                          ? selectedFycdRow?.rateName || ""
+                          : "N/A"
                       }
                       options={adjRateOpt}
                       displayKey="name"

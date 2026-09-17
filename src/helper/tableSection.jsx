@@ -726,16 +726,22 @@ const renderInput = (col, item, id, isNew, onFieldChange) => {
     case "search-select": {
       // item[col.key] is where "orgSecProfCd" is stored
       const currentValue = item[col.key] || "";
+      const isFieldDisabled =
+        typeof col.isDisabled === "function"
+          ? col.isDisabled(item)
+          : typeof col.disabled === "function"
+          ? col.disabled(item)
+          : !isEditable || !!col.disabled;
 
       return (
         <div className="relative">
           <TableSearchSelect
             id={id}
             value={currentValue}
-            options={col.options || []}
+            options={typeof col.options === "function" ? col.options(item) : (col.options || [])}
             displayKey={col.displayKey}
             secondaryKey={col.secondaryKey}
-            disabled={!isEditable}
+            disabled={isFieldDisabled}
             onSelect={(selectedOpt, rowId) => {
               if (col.onSelect) {
                 col.onSelect(selectedOpt, rowId);
@@ -804,18 +810,29 @@ const renderInput = (col, item, id, isNew, onFieldChange) => {
     }
 
 
-    case "checkbox":
+    case "checkbox": {
+      const isChecked =
+        typeof col.value === "function"
+          ? col.value(item)
+          : value === "Y" || value === true;
       return (
         <div className="flex justify-center">
           <input
             type="checkbox"
             className="accent-[#17414d] h-3 w-3 cursor-pointer"
-            checked={!!value}
+            checked={!!isChecked}
             disabled={!isEditable}
-            onChange={(e) => onFieldChange(id, col.key, e.target.checked)}
+            onChange={(e) => {
+              if (col.onToggle) {
+                col.onToggle(id, isChecked);
+              } else {
+                onFieldChange(id, col.key, e.target.checked ? "Y" : "N");
+              }
+            }}
           />
         </div>
       );
+    }
 
     case "action-delete":
       return (
@@ -904,8 +921,8 @@ export const TableSearchSelect = ({
         <input
           type="text"
           disabled={disabled}
-          className={`w-full border outline-none border-gray-200 pl-1 pr-6 py-0.5 rounded text-[10px] 
-            ${disabled ? "bg-gray-200 cursor-not-allowed text-gray-500" : "bg-white focus:border-blue-300"}`}
+          className={`w-full border outline-none pl-1 pr-6 py-0.5 rounded text-[10px] transition-all 
+            ${disabled ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed select-none pointer-events-none" : "bg-white border-gray-200 focus:border-blue-300 text-slate-800"}`}
           /* CRITICAL FIX: 
              If the dropdown is open, show the search text.
              If the dropdown is closed, show the 'value' (profile ID) passed from handleFieldChange.
@@ -919,7 +936,7 @@ export const TableSearchSelect = ({
           autoComplete="off"
         />
         <div
-          className="absolute right-1 cursor-pointer text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center"
+          className={`absolute right-1 cursor-pointer transition-colors flex items-center justify-center ${disabled ? "text-slate-300 pointer-events-none" : "text-gray-400 hover:text-gray-600"}`}
           onClick={() => !disabled && setShowDropdown((prev) => !prev)}
         >
           <ChevronDown size={12} />

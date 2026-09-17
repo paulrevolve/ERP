@@ -30,6 +30,17 @@ export const useRecentStore = create((set, get) => ({
     });
   },
 
+  removeRecentPage: (path) => {
+    if (!path) return;
+    set((state) => {
+      const updated = state.recentPages.filter((p) => p.path !== path);
+      try {
+        localStorage.setItem("erp_recent_pages", JSON.stringify(updated));
+      } catch {}
+      return { recentPages: updated };
+    });
+  },
+
   clearRecentPages: () => {
     try {
       localStorage.removeItem("erp_recent_pages");
