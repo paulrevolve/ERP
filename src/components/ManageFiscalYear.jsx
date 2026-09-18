@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { backendUrl } from "./config";
 import { toast } from "react-toastify";
 import api from "../utils/api";
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import ReusableTable from "../helper/tableSection";
 import { useDraftStore } from "../store/useDraftStore";
+import { useRecentStore } from "../store/useRecentStore";
 
 const FormSection = ({ title, children, className = "" }) => {
   return (
@@ -274,6 +276,8 @@ const FormSearchSelect = ({
 };
 
 const ManageFiscalYear = ({ canEdit }) => {
+  const navigate = useNavigate();
+
   // --- Data States ---
   const [fycd, setFycd] = useState([]);
   const [selectedFycdRow, setSelectedFycdRow] = useState(null);
@@ -283,7 +287,8 @@ const ManageFiscalYear = ({ canEdit }) => {
   const [selectedRows, setSelectedRows] = useState([]);
 
   // --- Sorting State ---
-  const [sortOrder, setSortOrder] = useState(null); // 'asc' | 'desc' | null
+  const [sortColumn, setSortColumn] = useState("fyCd");
+  const [sortDirection, setSortDirection] = useState("asc");
 
   // --- UI & Find/Replace States ---
   const [searchTermProfiles, setSearchTermProfiles] = useState("");
@@ -314,9 +319,35 @@ const ManageFiscalYear = ({ canEdit }) => {
     { closeActTgtCd: "T", name: "Target Rates" },
   ];
 
-  const toggleSort = () => {
-    setSortOrder((prev) => (prev === "asc" ? "desc" : prev === "desc" ? null : "asc"));
+  const handleColumnSort = (columnKey) => {
+    let nextDir = "asc";
+    if (sortColumn === columnKey) {
+      nextDir = sortDirection === "asc" ? "desc" : "asc";
+    }
+    setSortColumn(columnKey);
+    setSortDirection(nextDir);
   };
+
+  const renderSortIcon = (columnKey, label) => (
+    <span
+      onClick={(e) => {
+        e.stopPropagation();
+        handleColumnSort(columnKey);
+      }}
+      className="cursor-pointer text-slate-500 hover:text-slate-800 transition-colors p-0.5 inline-flex items-center justify-center"
+      title={`Sort by ${label} (${sortColumn === columnKey && sortDirection === "desc" ? "Descending" : "Ascending"})`}
+    >
+      {sortColumn === columnKey ? (
+        sortDirection === "asc" ? (
+          <ArrowUp size={13} className="text-[#1677e8]" />
+        ) : (
+          <ArrowDown size={13} className="text-[#1677e8]" />
+        )
+      ) : (
+        <ArrowUpDown size={13} className="text-slate-400 hover:text-slate-600" />
+      )}
+    </span>
+  );
 
   // --- Table Column Definitions with Column Sorting ---
   const myColumns = [
@@ -325,27 +356,14 @@ const ManageFiscalYear = ({ canEdit }) => {
       key: "fyCd",
       required: true,
       readOnlyIfExisting: true,
-      sortIcon: (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleSort();
-          }}
-          className="cursor-pointer p-0.5 hover:bg-black/5 rounded transition-colors text-slate-500 hover:text-slate-800 inline-flex items-center justify-center"
-          title="Sort by Fiscal Year (Click to cycle Asc / Desc / Default)"
-        >
-          {sortOrder === "asc" ? (
-            <ArrowUp size={13} className="text-[#1677e8] font-bold" />
-          ) : sortOrder === "desc" ? (
-            <ArrowDown size={13} className="text-[#1677e8] font-bold" />
-          ) : (
-            <ArrowUpDown size={13} className="text-slate-400" />
-          )}
-        </button>
-      ),
+      sortIcon: renderSortIcon("fyCd", "Fiscal Year"),
     },
-    { label: "Description", key: "fyDesc", required: true },
+    {
+      label: "Description",
+      key: "fyDesc",
+      required: true,
+      sortIcon: renderSortIcon("fyDesc", "Description"),
+    },
     {
       label: "Status",
       key: "statusName",
@@ -356,6 +374,7 @@ const ManageFiscalYear = ({ canEdit }) => {
         handleFieldChange(id, "statusCd", opt.statusCd);
         handleFieldChange(id, "statusName", opt.name);
       },
+      sortIcon: renderSortIcon("statusName", "Status"),
     },
     {
       label: "Rate Type",
@@ -367,6 +386,7 @@ const ManageFiscalYear = ({ canEdit }) => {
         handleFieldChange(id, "closeActTgtCd", opt.closeActTgtCd);
         handleFieldChange(id, "rateName", opt.name);
       },
+      sortIcon: renderSortIcon("rateName", "Rate Type"),
     },
   ];
 
@@ -619,8 +639,10 @@ const ManageFiscalYear = ({ canEdit }) => {
     const headerKeys = [
       "fiscal year",
       "fycd",
+      "year",
       "description",
       "fydesc",
+      "desc",
       "status",
       "statuscd",
       "statusname",
@@ -666,7 +688,19 @@ const ManageFiscalYear = ({ canEdit }) => {
       rateTypeIdx = 3;
     }
 
+    // Map existing rows to check for existing fyCd
+    const existingMap = new Map();
+    fycd.forEach((r) => {
+      if (r.fyCd && !r.tempId) {
+        existingMap.set(String(r.fyCd).trim().toLowerCase(), r);
+      }
+    });
+
+    let updatedExistingCount = 0;
+    let newRowsCount = 0;
     const pastedRows = [];
+    let updatedFycd = [...fycd];
+
     dataLines.forEach((line, i) => {
       const cells = line.split("\t");
 
@@ -692,41 +726,81 @@ const ManageFiscalYear = ({ canEdit }) => {
       const { statusCd, statusName } = resolveStatus(rawStatus);
       const { closeActTgtCd, rateName } = resolveRateType(rawRateType);
 
-      const tempIdVal = `PASTE_${Date.now()}_${i}_${Math.random()
-        .toString(36)
-        .substr(2, 5)}`;
+      const existing = existingMap.get(rawFyCd.toLowerCase());
+      if (existing && rawFyCd) {
+        const targetKey = getRowKey(existing);
+        updatedFycd = updatedFycd.map((r) => {
+          if (getRowKey(r) === targetKey) {
+            return {
+              ...r,
+              fyDesc: rawFyDesc || r.fyDesc,
+              statusCd: statusCd || r.statusCd,
+              statusName: statusName || r.statusName,
+              closeActTgtCd: closeActTgtCd !== undefined ? closeActTgtCd : r.closeActTgtCd,
+              rateName: rateName || r.rateName,
+              isDirty: true,
+            };
+          }
+          return r;
+        });
+        updatedExistingCount++;
+      } else {
+        const tempIdVal = `PASTE_${Date.now()}_${i}_${Math.random()
+          .toString(36)
+          .substr(2, 5)}`;
 
-      pastedRows.push({
-        fyCd: rawFyCd,
-        fyDesc: rawFyDesc || (rawFyCd ? `Fiscal Year ${rawFyCd}` : ""),
-        statusCd,
-        statusName,
-        closeActTgtCd,
-        rateName,
-        companyId: "1",
-        tempId: tempIdVal,
-        tableRowKey: tempIdVal,
-        isDirty: true,
-      });
+        pastedRows.push({
+          fyCd: rawFyCd,
+          fyDesc: rawFyDesc || (rawFyCd ? `Fiscal Year ${rawFyCd}` : ""),
+          statusCd,
+          statusName,
+          closeActTgtCd,
+          rateName,
+          startDate:
+            rawFyCd && /^\d{4}$/.test(rawFyCd)
+              ? `${rawFyCd}-01-01`
+              : `${new Date().getFullYear()}-01-01`,
+          companyId: "1",
+          tempId: tempIdVal,
+          tableRowKey: tempIdVal,
+          isNew: true,
+          isDirty: true,
+        });
+        newRowsCount++;
+      }
     });
 
-    if (pastedRows.length === 0) {
+    if (updatedExistingCount === 0 && pastedRows.length === 0) {
       return toast.warn("No valid rows parsed from clipboard.");
     }
 
-    setFycd((prev) => [...pastedRows, ...prev]);
-    setSelectedFycdRow(pastedRows[0]);
-    setSelectedRows([pastedRows[0]]);
-    toast.success(`${pastedRows.length} record(s) pasted.`);
+    const finalFycd = [...pastedRows, ...updatedFycd];
+    setFycd(finalFycd);
+    if (pastedRows.length > 0) {
+      setSelectedFycdRow(pastedRows[0]);
+      setSelectedRows([pastedRows[0]]);
+    } else if (finalFycd.length > 0) {
+      setSelectedFycdRow(finalFycd[0]);
+      setSelectedRows([finalFycd[0]]);
+    }
+
+    if (updatedExistingCount > 0 && newRowsCount > 0) {
+      toast.success(
+        `Pasted: ${updatedExistingCount} existing record(s) updated, ${newRowsCount} new record(s) added.`,
+      );
+    } else if (updatedExistingCount > 0) {
+      toast.success(
+        `Pasted: ${updatedExistingCount} existing record(s) updated. Click Save to persist.`,
+      );
+    } else {
+      toast.success(`${newRowsCount} record(s) pasted from clipboard.`);
+    }
   };
 
-  const handleCopy = () => {
-    if (selectedRows.length === 0)
-      return toast.warn("Select at least one record to copy.");
-
+  const handleCopy = async () => {
     const rowsToCopy = isFormView
       ? (selectedFycdRow ? [selectedFycdRow] : [])
-      : (selectedRows || []);
+      : (selectedRows && selectedRows.length > 0 ? selectedRows : (selectedFycdRow ? [selectedFycdRow] : []));
 
     if (rowsToCopy.length === 0) {
       return toast.warn("Select at least one record to copy.");
@@ -734,21 +808,48 @@ const ManageFiscalYear = ({ canEdit }) => {
 
     setClipboard([...rowsToCopy]);
     setHasCopied(true);
-    toast.success(`${rowsToCopy.length} record(s) copied.`);
+
+    // Format TSV for Excel copy
+    const header = "Fiscal Year\tDescription\tStatus\tRate Type";
+    const tsvLines = rowsToCopy.map((r) => {
+      const fy = r.fyCd ?? "";
+      const desc = r.fyDesc ?? "";
+      const s = r.statusName ?? "";
+      const rate = r.rateName ?? "";
+      return `${fy}\t${desc}\t${s}\t${rate}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} record(s) copied to clipboard`);
   };
 
-  const handlePaste = () => {
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
     if (!clipboard || clipboard.length === 0) {
       return toast.warn("Clipboard is empty. Copy a record first.");
     }
 
     const pasted = clipboard.map((row, i) => {
       const clonedRow = JSON.parse(JSON.stringify(row));
-      const { tempId, id, fyCd, ...restProps } = clonedRow;
-      const tempIdVal = `TEMP_${Date.now()}_${i}`;
+      const { tempId, id, tableRowKey, ...restProps } = clonedRow;
+      const tempIdVal = `PASTE_${Date.now()}_${i}`;
       return {
         ...restProps,
-        fyCd: fyCd ? `${fyCd}-C` : "",
+        fyCd: restProps.fyCd ? `${restProps.fyCd}-C` : "",
         tempId: tempIdVal,
         tableRowKey: tempIdVal,
         isNew: true,
@@ -967,23 +1068,82 @@ const ManageFiscalYear = ({ canEdit }) => {
     setSearchValue("");
     setReplaceValue("");
     setFilteredGroups([]);
+    if (fycd.length > 0) {
+      setSelectedFycdRow(fycd[0]);
+    }
+    toast.info("Filter reset, showing all records");
+  };
+
+  const handleCloseScreen = () => {
+    useDraftStore.getState().clearDraft("manage-fiscal-year");
+    useRecentStore.getState().removeRecentPage?.("/dashboard/fiscalyear");
+    useRecentStore.getState().removeRecentPage?.("/dashboard/manage-fiscalyear");
+    navigate("/dashboard");
   };
 
   // --- Memoized Sorted and Filtered Table Data ---
   const displayData = useMemo(() => {
-    const base = filteredGroups.length > 0 ? filteredGroups : fycd;
-    if (!sortOrder) return base;
-    return [...base].sort((a, b) => {
-      const valA = String(a.fyCd || "").toLowerCase();
-      const valB = String(b.fyCd || "").toLowerCase();
-      if (sortOrder === "asc") {
-        return valA.localeCompare(valB, undefined, { numeric: true });
-      }
-      return valB.localeCompare(valA, undefined, { numeric: true });
-    });
-  }, [fycd, filteredGroups, sortOrder]);
+    let base = filteredGroups.length > 0 ? filteredGroups : fycd;
+    if (searchTermProfiles && searchTermProfiles.trim()) {
+      const q = searchTermProfiles.toLowerCase().trim();
+      base = base.filter((row) => {
+        const fy = String(row.fyCd || "").toLowerCase();
+        const desc = String(row.fyDesc || "").toLowerCase();
+        const stat = String(row.statusName || "").toLowerCase();
+        const rate = String(row.rateName || "").toLowerCase();
+        const mod = String(row.modifiedBy || "").toLowerCase();
+        return (
+          fy.includes(q) ||
+          desc.includes(q) ||
+          stat.includes(q) ||
+          rate.includes(q) ||
+          mod.includes(q)
+        );
+      });
+    }
 
-  let currentIndex = fycd.findIndex(
+    if (!sortColumn) {
+      return [...base].sort((a, b) => {
+        if (a.tempId && !b.tempId) return -1;
+        if (!a.tempId && b.tempId) return 1;
+        return String(a.fyCd || "").localeCompare(String(b.fyCd || ""), undefined, { numeric: true });
+      });
+    }
+
+    return [...base].sort((a, b) => {
+      // Keep new unsaved rows at top
+      if (a.tempId && !b.tempId) return -1;
+      if (!a.tempId && b.tempId) return 1;
+
+      const valA = a[sortColumn] ?? "";
+      const valB = b[sortColumn] ?? "";
+      const numA = Number(valA);
+      const numB = Number(valB);
+
+      if (!isNaN(numA) && !isNaN(numB) && valA !== "" && valB !== "") {
+        return sortDirection === "asc" ? numA - numB : numB - numA;
+      }
+
+      return sortDirection === "asc"
+        ? String(valA).localeCompare(String(valB), undefined, { numeric: true })
+        : String(valB).localeCompare(String(valA), undefined, { numeric: true });
+    });
+  }, [filteredGroups, fycd, searchTermProfiles, sortColumn, sortDirection]);
+
+  // Global search sync with active record in Form View
+  useEffect(() => {
+    if (searchTermProfiles && displayData.length > 0) {
+      const isCurrentInDisplay = displayData.some(
+        (r) => getRowKey(r) === getRowKey(selectedFycdRow),
+      );
+      if (!isCurrentInDisplay) {
+        setSelectedFycdRow(displayData[0]);
+        setSelectedRows([displayData[0]]);
+      }
+    }
+  }, [searchTermProfiles, displayData]);
+
+  let currentIndex = displayData.findIndex(
     (f) => getRowKey(f) === getRowKey(selectedFycdRow || {}),
   );
 
@@ -992,11 +1152,11 @@ const ManageFiscalYear = ({ canEdit }) => {
     if (dir === "start") newIdx = 0;
     else if (dir === "prev") newIdx = currentIndex - 1;
     else if (dir === "next") newIdx = currentIndex + 1;
-    else if (dir === "end") newIdx = fycd.length - 1;
+    else if (dir === "end") newIdx = displayData.length - 1;
 
-    if (newIdx >= 0 && newIdx < fycd.length) {
-      setSelectedFycdRow(fycd[newIdx]);
-      setSelectedRows([fycd[newIdx]]);
+    if (newIdx >= 0 && newIdx < displayData.length) {
+      setSelectedFycdRow(displayData[newIdx]);
+      setSelectedRows([displayData[newIdx]]);
     }
   };
 
@@ -1022,11 +1182,33 @@ const ManageFiscalYear = ({ canEdit }) => {
   };
 
   const handleSelectAll = () => {
-    const dataToSelect = filteredGroups.length > 0 ? filteredGroups : fycd;
-    if (selectedRows.length === dataToSelect.length) {
-      setSelectedRows([]);
+    const dataToSelect = displayData;
+
+    const allCurrentInViewSelected = dataToSelect.every((item) =>
+      selectedRows.some((selected) => getRowKey(selected) === getRowKey(item)),
+    );
+
+    if (allCurrentInViewSelected) {
+      const remainingRows = selectedRows.filter(
+        (selected) =>
+          !dataToSelect.some((item) => getRowKey(item) === getRowKey(selected)),
+      );
+      setSelectedRows(remainingRows);
+      if (remainingRows.length > 0) {
+        setSelectedFycdRow(remainingRows[0]);
+      } else if (fycd.length > 0) {
+        setSelectedFycdRow(fycd[0]);
+      }
     } else {
-      setSelectedRows([...dataToSelect]);
+      setSelectedRows((prev) => {
+        const prevSafe = Array.isArray(prev) ? prev : [];
+        const newItems = dataToSelect.filter(
+          (item) => !prevSafe.some((p) => getRowKey(p) === getRowKey(item)),
+        );
+        const combined = [...prevSafe, ...newItems];
+        if (combined.length > 0) setSelectedFycdRow(combined[0]);
+        return combined;
+      });
     }
   };
 
@@ -1052,19 +1234,19 @@ const ManageFiscalYear = ({ canEdit }) => {
     : Array.isArray(selectedRows) && selectedRows.length > 0;
   const isCopyDisabled = loading || !hasSelection;
   const isDeleteDisabled = loading || !hasSelection;
-  const isPasteDisabled = loading || !clipboard || clipboard.length === 0;
+  const isPasteDisabled = loading;
 
   return (
     <div className="payment-voucher-page min-h-full bg-white text-[#1f2937] font-inter">
       <style>
         {`
         .payment-voucher-page { font-size:12px; color:#1f2937; }
-        .payment-voucher-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
         .payment-voucher-page .voucher-head-btn:hover, .payment-voucher-page .voucher-icon-btn:hover, .payment-voucher-page .voucher-outline-btn:hover { background:#f5f8fb; border-color:#b9c8d8; }
-        .payment-voucher-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #1677e8; border-radius:6px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
         .payment-voucher-page .voucher-primary-btn:hover { background:#125bc3; border-color:#125bc3; }
-        .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
-        .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#52657c; cursor:pointer; }
+        .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#52657c; cursor:pointer; }
         .payment-voucher-page .voucher-head-btn:disabled,
         .payment-voucher-page .voucher-primary-btn:disabled,
         .payment-voucher-page .voucher-icon-btn:disabled,
@@ -1084,11 +1266,11 @@ const ManageFiscalYear = ({ canEdit }) => {
         .payment-voucher-page .voucher-master-card > .grid { padding:12px; overflow:visible !important; }
         .payment-voucher-page .voucher-master-card .space-y-2 { gap:10px; position:relative; }
         .payment-voucher-page .voucher-panel-title { display:flex; align-items:center; min-height:36px; margin:0 12px 0; padding:0 0 0; border-bottom:1px solid #eeeeee; color:#3c4043; font-size:12px; font-weight:600; }
-        .payment-voucher-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; }
+        .payment-voucher-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; }
         .payment-voucher-page .voucher-nav-btn:last-child { border-right:0; }
         .payment-voucher-page .voucher-nav-btn:hover { background:#eaf1f7; color:#17414d; }
         .payment-voucher-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
-        .payment-voucher-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
+        .payment-voucher-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:28px; padding:0 6px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
         
         /* TABLE INPUT STYLING MATCHING MANAGECOUNTRIES */
         .payment-voucher-page .td-input[readonly] {
@@ -1110,7 +1292,7 @@ const ManageFiscalYear = ({ canEdit }) => {
         `}
       </style>
 
-      {/* NEW UI TOP BAR */}
+      {/* TOP BAR */}
       <div className="h-[50px] border-b border-[#e5e7eb] bg-white px-5 ml-[15px]">
         <div className="flex h-full items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-2 text-[11px] text-[#7b8798]">
@@ -1123,11 +1305,11 @@ const ManageFiscalYear = ({ canEdit }) => {
         </div>
       </div>
 
-      {/* NEW UI PAGE HEADER */}
+      {/* PAGE HEADER */}
       <div className="border-b border-[#dbe3eb] bg-white ml-[15px]">
         <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-[18px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h1 className="text-[17px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
               Fiscal Year
             </h1>
             <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
@@ -1138,7 +1320,7 @@ const ManageFiscalYear = ({ canEdit }) => {
                 onClick={() => handleNavigate("start")}
                 disabled={currentIndex <= 0}
               >
-                <ChevronsLeft size={16} strokeWidth={1.5} />
+                <ChevronsLeft size={15} strokeWidth={1.5} />
               </button>
               <button
                 type="button"
@@ -1147,61 +1329,86 @@ const ManageFiscalYear = ({ canEdit }) => {
                 onClick={() => handleNavigate("prev")}
                 disabled={currentIndex <= 0}
               >
-                <ChevronLeft size={16} strokeWidth={1.5} />
+                <ChevronLeft size={15} strokeWidth={1.5} />
               </button>
               <span className="voucher-count">
-                {selectedFycdRow && fycd.length > 0
+                {selectedFycdRow && displayData.length > 0
                   ? (currentIndex >= 0 ? currentIndex + 1 : 1)
                   : 0}{" "}
-                / {fycd.length}
+                / {displayData.length}
               </span>
               <button
                 type="button"
                 className="voucher-nav-btn"
                 title="Next"
                 onClick={() => handleNavigate("next")}
-                disabled={currentIndex >= fycd.length - 1}
+                disabled={currentIndex >= displayData.length - 1}
               >
-                <ChevronRight size={16} strokeWidth={1.5} />
+                <ChevronRight size={15} strokeWidth={1.5} />
               </button>
               <button
                 type="button"
                 className="voucher-nav-btn"
                 title="Last"
                 onClick={() => handleNavigate("end")}
-                disabled={currentIndex >= fycd.length - 1}
+                disabled={currentIndex >= displayData.length - 1}
               >
-                <ChevronsRight size={16} strokeWidth={1.5} />
+                <ChevronsRight size={15} strokeWidth={1.5} />
               </button>
+            </div>
+
+            {/* Quick Search on Toolbar */}
+            <div className="relative flex items-center ml-1">
+              <Search
+                size={13}
+                className="absolute left-2 text-slate-400 pointer-events-none"
+              />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTermProfiles}
+                onChange={(e) => setSearchTermProfiles(e.target.value)}
+                className="h-7 w-36 pl-7 pr-6 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
+              />
+              {searchTermProfiles && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTermProfiles("")}
+                  className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleAddFyCd}
               className="voucher-primary-btn"
             >
-              <Plus size={14} /> Create
+              <Plus size={13} /> Create
             </button>
 
             <button
               type="button"
-              className="voucher-head-btn"
               onClick={handleCopy}
               disabled={isCopyDisabled}
+              className="voucher-head-btn"
             >
-              <Copy size={14} />
+              <Copy size={13} />
               Copy
             </button>
 
             <button
               type="button"
-              className="voucher-head-btn"
               onClick={handlePaste}
               disabled={isPasteDisabled}
+              className="voucher-head-btn"
             >
-              <ClipboardPaste size={14} />
+              <ClipboardPaste size={13} />
               Paste
             </button>
 
@@ -1211,16 +1418,31 @@ const ManageFiscalYear = ({ canEdit }) => {
               disabled={isDeleteDisabled}
               className="voucher-head-btn"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               Delete
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowFindReplace((prev) => !prev)}
+              className={`voucher-head-btn ${
+                showFindReplace
+                  ? "bg-slate-100 border-[#1677e8] text-[#1677e8]"
+                  : ""
+              }`}
+              title="Find & Replace"
+            >
+              <Replace size={13} />
+              Find/Replace
             </button>
 
             <button
               type="button"
               onClick={handleClear}
               className="voucher-head-btn"
+              title="Reset unsaved changes"
             >
-              Cancel
+              Reset
             </button>
 
             <button
@@ -1235,31 +1457,29 @@ const ManageFiscalYear = ({ canEdit }) => {
               }}
               className="voucher-head-btn text-[#1677e8] border-[#1677e8]/40 hover:bg-[#1677e8]/5"
             >
-              <Save size={14} />
+              <Save size={13} />
               Save
             </button>
 
             <button
               type="button"
-              onClick={() => setShowFindReplace(!showFindReplace)}
-              className={`voucher-head-btn ${
-                showFindReplace ? "bg-[#1677e8]/10 text-[#1677e8] border-[#1677e8]/40 font-semibold" : ""
-              }`}
-              title="Toggle Find & Replace"
+              onClick={handleCloseScreen}
+              className="voucher-head-btn text-slate-600 hover:text-slate-800"
+              title="Close screen and clear cache"
             >
-              <Replace size={14} />
-              Find & Replace
+              <X size={13} />
+              Close
             </button>
 
             <button
               type="button"
               onClick={toggleView}
               disabled={loading}
-              className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
+              className="relative flex h-[28px] w-[74px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[2px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
             >
               <span
-                className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
-                  isFormView ? "left-[3px]" : "left-[41px]"
+                className={`absolute top-[2px] h-[22px] w-[34px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                  isFormView ? "left-[2px]" : "left-[36px]"
                 }`}
               />
               <span
@@ -1292,7 +1512,11 @@ const ManageFiscalYear = ({ canEdit }) => {
                   <span className="text-[11px] font-semibold text-slate-600">In:</span>
                   <select
                     value={searchColumn}
-                    onChange={(e) => setSearchColumn(e.target.value)}
+                    onChange={(e) => {
+                      setSearchColumn(e.target.value);
+                      setSearchValue("");
+                      setReplaceValue("");
+                    }}
                     className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
                   >
                     <option value="all">All Columns</option>
@@ -1304,29 +1528,84 @@ const ManageFiscalYear = ({ canEdit }) => {
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    placeholder="Find..."
-                    value={searchValue}
-                    onChange={(e) => setSearchValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleFind()}
-                    className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
-                  />
+                  {searchColumn === "statusName" ? (
+                    <select
+                      value={searchValue}
+                      onChange={(e) => {
+                        setSearchValue(e.target.value);
+                        if (!e.target.value) setFilteredGroups([]);
+                      }}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">Find Status...</option>
+                      <option value="Open">Open</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  ) : searchColumn === "rateName" ? (
+                    <select
+                      value={searchValue}
+                      onChange={(e) => {
+                        setSearchValue(e.target.value);
+                        if (!e.target.value) setFilteredGroups([]);
+                      }}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">Find Rate Type...</option>
+                      <option value="None">None</option>
+                      <option value="Actual Rates">Actual Rates</option>
+                      <option value="Target Rates">Target Rates</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Find..."
+                      value={searchValue}
+                      onChange={(e) => {
+                        setSearchValue(e.target.value);
+                        if (!e.target.value) setFilteredGroups([]);
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && handleFind()}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                    />
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    placeholder="Replace with..."
-                    value={replaceValue}
-                    disabled={searchColumn === "fyCd"}
-                    onChange={(e) => setReplaceValue(e.target.value)}
-                    className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
-                      searchColumn === "fyCd"
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
-                        : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
-                    }`}
-                  />
+                  {searchColumn === "statusName" ? (
+                    <select
+                      value={replaceValue}
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">Replace With...</option>
+                      <option value="Open">Open</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  ) : searchColumn === "rateName" ? (
+                    <select
+                      value={replaceValue}
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
+                    >
+                      <option value="">Replace With...</option>
+                      <option value="None">None</option>
+                      <option value="Actual Rates">Actual Rates</option>
+                      <option value="Target Rates">Target Rates</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Replace with..."
+                      value={replaceValue}
+                      disabled={searchColumn === "fyCd"}
+                      onChange={(e) => setReplaceValue(e.target.value)}
+                      className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                        searchColumn === "fyCd"
+                          ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                          : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                      }`}
+                    />
+                  )}
                 </div>
 
                 <button

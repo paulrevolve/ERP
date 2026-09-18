@@ -220,7 +220,7 @@ const NavigationSidebar = ({ canView, isSidebarOpen, setIsSidebarOpen }) => {
               subItems: [
                 {
                   label: "Fiscal Year",
-                  path: "/dashboard/manage-fiscalyear",
+                  path: "/dashboard/fiscalyear",
                   permission: "fiscalYear",
                 },
                 {
@@ -230,7 +230,7 @@ const NavigationSidebar = ({ canView, isSidebarOpen, setIsSidebarOpen }) => {
                 },
                 {
                   label: "Subperiod",
-                  path: "/dashboard/manage-subperiod",
+                  path: "/dashboard/subperiod",
                   permission: "fiscalYear",
                 },
               ],

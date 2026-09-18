@@ -428,8 +428,14 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     {
       label: "Fiscal Year",
       key: "fyCd",
+      type: "search-select",
+      options: fiscalYearOpt,
+      displayKey: "fyCd",
       required: true,
       readOnlyIfExisting: true,
+      onSelect: (opt, id) => {
+        handleFieldChange(id, "fyCd", opt.fyCd);
+      },
       sortIcon: renderSortIcon("fyCd", "Fiscal Year"),
     },
     {
@@ -1562,7 +1568,18 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       });
     }
 
-    if (!sortColumn) return base;
+    if (!sortColumn) {
+      return [...base].sort((a, b) => {
+        if (a.tempId && !b.tempId) return -1;
+        if (!a.tempId && b.tempId) return 1;
+        const cmpFy = String(a.fyCd || "").localeCompare(String(b.fyCd || ""), undefined, { numeric: true });
+        if (cmpFy !== 0) return cmpFy;
+        const dateA = a.periodEndDate ? new Date(a.periodEndDate).getTime() : 0;
+        const dateB = b.periodEndDate ? new Date(b.periodEndDate).getTime() : 0;
+        if (dateA !== dateB) return dateA - dateB;
+        return (Number(a.periodNo) || 0) - (Number(b.periodNo) || 0);
+      });
+    }
 
     return [...base].sort((a, b) => {
       // Keep new unsaved rows at top

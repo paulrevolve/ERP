@@ -2,9 +2,11 @@
 export const getRouteMeta = (pathname) => {
   const routesMap = {
     "/dashboard": { title: "Home", category: "Dashboard" },
+    "/dashboard/fiscalyear": { title: "Fiscal Year", category: "Accounting > General Ledger" },
     "/dashboard/manage-fiscalyear": { title: "Fiscal Year", category: "Accounting > General Ledger" },
     "/dashboard/period": { title: "Period", category: "Accounting > General Ledger" },
     "/dashboard/manage-accountingperiod": { title: "Period", category: "Accounting > General Ledger" },
+    "/dashboard/subperiod": { title: "Subperiod", category: "Accounting > General Ledger" },
     "/dashboard/manage-subperiod": { title: "Subperiod", category: "Accounting > General Ledger" },
     "/dashboard/org-master": { title: "Organization Setup", category: "Accounting > Organizations" },
     "/dashboard/account-master": { title: "Manage Accounts", category: "Manage" },

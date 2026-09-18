@@ -2571,6 +2571,14 @@ function App() {
               }
             />
             <Route
+              path="fiscalyear"
+              element={
+                <div className="mt-10">
+                  <ManageFiscalYear canEdit={canEdit} />
+                </div>
+              }
+            />
+            <Route
               path="manage-fiscalyear"
               element={
                 <div className="mt-10">
@@ -2591,6 +2599,14 @@ function App() {
               element={
                 <div className="mt-10">
                   <ManageAccountingPeriod canEdit={canEdit} />
+                </div>
+              }
+            />
+            <Route
+              path="subperiod"
+              element={
+                <div className="mt-10">
+                  <ManageSubperiod canEdit={canEdit} />
                 </div>
               }
             />
