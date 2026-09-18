@@ -2579,6 +2579,14 @@ function App() {
               }
             />
             <Route
+              path="period"
+              element={
+                <div className="mt-10">
+                  <ManageAccountingPeriod canEdit={canEdit} />
+                </div>
+              }
+            />
+            <Route
               path="manage-accountingperiod"
               element={
                 <div className="mt-10">

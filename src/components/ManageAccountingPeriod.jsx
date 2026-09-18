@@ -574,9 +574,18 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         };
       });
 
-      setFycd(enrichedData);
+      const sortedData = [...enrichedData].sort((a, b) => {
+        const cmpFy = String(a.fyCd || "").localeCompare(String(b.fyCd || ""), undefined, { numeric: true });
+        if (cmpFy !== 0) return cmpFy;
+        const dateA = a.periodEndDate ? new Date(a.periodEndDate).getTime() : 0;
+        const dateB = b.periodEndDate ? new Date(b.periodEndDate).getTime() : 0;
+        if (dateA !== dateB) return dateA - dateB;
+        return (Number(a.periodNo) || 0) - (Number(b.periodNo) || 0);
+      });
+
+      setFycd(sortedData);
       setSelectedRows([]);
-      setSelectedFycdRow(enrichedData.length > 0 ? enrichedData[0] : null);
+      setSelectedFycdRow(sortedData.length > 0 ? sortedData[0] : null);
     } catch (e) {
       console.error("Fetch error", e);
       toast.error("Failed to load data");
@@ -788,13 +797,35 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     }
 
     // Validation: Fiscal Year & Period are required
+    // Validation: Fiscal Year, Period, Period End Date, and Fiscal Year existence
+    const seenKeys = new Set();
     for (const row of changedRows) {
       if (!row.fyCd || String(row.fyCd).trim() === "") {
         return toast.error("Fiscal Year is required.");
       }
+      if (
+        fiscalYearOpt &&
+        fiscalYearOpt.length > 0 &&
+        !fiscalYearOpt.some(
+          (fy) => String(fy.fyCd).trim().toLowerCase() === String(row.fyCd).trim().toLowerCase(),
+        )
+      ) {
+        return toast.error(
+          `Fiscal Year "${row.fyCd}" does not exist in Fiscal Year Master. Please create Fiscal Year "${row.fyCd}" first.`,
+        );
+      }
       if (row.periodNo === undefined || row.periodNo === null || String(row.periodNo).trim() === "") {
         return toast.error(`Fiscal Year ${row.fyCd}: Period is required.`);
       }
+      if (!row.periodEndDate || !String(row.periodEndDate).trim()) {
+        return toast.error(`Fiscal Year ${row.fyCd} - Period ${row.periodNo}: Period End Date is required.`);
+      }
+      const key = `${String(row.fyCd).trim()}_${String(row.periodNo).trim()}`;
+      if (seenKeys.has(key)) {
+        return toast.error(`Duplicate Fiscal Year and Period: ${row.fyCd} - Period ${row.periodNo}. Each period must be unique.`);
+      }
+      seenKeys.add(key);
+
       const isAdj = row.isAdjustment === "Y" || row.isAdjustment === true;
       if (
         isAdj &&
@@ -813,33 +844,49 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     try {
       let apiSuccessMsg = "";
       if (changedRows.length > 0) {
-        const responses = await Promise.all(
-          changedRows.map((row) => {
-            const isAdj =
-              row.isAdjustment === true || row.isAdjustment === "Y";
-            const payload = {
-              fyCd: row.fyCd,
-              periodNo: row.periodNo,
-              periodEndDate: row.periodEndDate,
-              statusCd: row.statusCd,
-              adjustmentCode: isAdj ? row.adjustmentCode : "N",
-              isAdjustment: isAdj ? "Y" : "N",
-              companyId: String(row.companyId) || "1",
-              modifiedBy: user.name,
-            };
-
-            if (row.tempId) {
-              return api.post(`${backendUrl}/api/accounting-period`, payload);
-            } else {
-              return api.put(
-                `${backendUrl}/api/accounting-period/${row.fyCd}/${row.periodNo}`,
-                payload,
-              );
-            }
-          }),
+        // Set of existing DB primary keys (loaded records without tempId)
+        const dbRecords = new Set(
+          fycd
+            .filter((r) => !r.tempId)
+            .map(
+              (r) =>
+                `${String(r.fyCd).trim().toLowerCase()}_${String(r.periodNo).trim()}`,
+            ),
         );
-        const firstMsg = responses.find((r) => r?.data?.message)?.data?.message;
-        if (firstMsg) apiSuccessMsg = firstMsg;
+
+        // Sequential save to avoid SQL Server / EF Core transient failure deadlocks on bulk saves
+        for (const row of changedRows) {
+          const isAdj =
+            row.isAdjustment === true || row.isAdjustment === "Y";
+          const formattedDate = parseExcelDate(row.periodEndDate) || String(row.periodEndDate).trim();
+          const targetKey = `${String(row.fyCd).trim().toLowerCase()}_${String(row.periodNo).trim()}`;
+          const existsInDb = dbRecords.has(targetKey);
+
+          const payload = {
+            fyCd: String(row.fyCd).trim(),
+            periodNo: Number(row.periodNo),
+            statusCd: row.statusCd || "N",
+            periodEndDate: formattedDate,
+            modifiedBy: user.name || "Admin",
+            companyId: String(row.companyId || user.companyId || "1"),
+            isAdjustment: isAdj ? "Y" : "N",
+            adjustmentCode: isAdj ? (row.adjustmentCode || "I") : "N",
+            adjustmentEndDate: null,
+          };
+
+          let res;
+          if (row.tempId && !existsInDb) {
+            res = await api.post(`${backendUrl}/api/accounting-period`, payload);
+          } else {
+            res = await api.put(
+              `${backendUrl}/api/accounting-period/${row.fyCd}/${row.periodNo}`,
+              payload,
+            );
+          }
+          if (res?.data?.message && !apiSuccessMsg) {
+            apiSuccessMsg = res.data.message;
+          }
+        }
       }
 
       if (isMappingDirty && moduleProMapping.length > 0) {
@@ -848,13 +895,17 @@ const ManageAccountingPeriod = ({ canEdit }) => {
 
       useDraftStore.getState().clearDraft("manage-accounting-period");
       toast.success(apiSuccessMsg || "All changes saved successfully");
-      fetchData();
+      await fetchData();
     } catch (e) {
       console.error("Save Error:", e);
-      toast.error(
+      const errMsg =
         e.response?.data?.message ||
-          "Save failed. Please check required fields.",
-      );
+        (typeof e.response?.data === "string" && e.response.data.trim()
+          ? e.response.data
+          : null) ||
+        e.message ||
+        "Save failed. Please check required fields.";
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -895,16 +946,15 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         console.warn("Child subperiod pre-check skipped", checkErr);
       }
 
-      await Promise.all(
-        selectedRows.map((row) => {
-          if (!row.tempId) {
-            return api.delete(
-              `${backendUrl}/api/accounting-period/${row.fyCd}/${row.periodNo}`,
-            );
-          }
-          return Promise.resolve();
-        }),
-      );
+      // Sequential delete to prevent concurrent connection deadlocks
+      for (const row of selectedRows) {
+        if (!row.tempId) {
+          const cId = String(row.companyId || user.companyId || "1");
+          await api.delete(
+            `${backendUrl}/api/accounting-period/${row.fyCd}/${row.periodNo}/${cId}`,
+          );
+        }
+      }
 
       const deletedKeys = selectedRows.map((r) => getRowKey(r));
       const updatedList = fycd.filter(
@@ -947,15 +997,292 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     }
   };
 
-  const handleCopy = () => {
-    if (selectedRows.length === 0)
-      return toast.warn("Select at least one record to copy.");
-    setClipboard([...selectedRows]);
-    toast.success(`${selectedRows.length} record(s) copied to clipboard`);
+  const resolveStatus = (val) => {
+    const trimmed = String(val || "").trim().toLowerCase();
+    if (trimmed.startsWith("o") || trimmed.includes("open")) {
+      return { statusCd: "O", statusName: "Open" };
+    }
+    if (trimmed.startsWith("c") || trimmed.includes("close")) {
+      return { statusCd: "C", statusName: "Closed" };
+    }
+    return { statusCd: "N", statusName: "Not Available" };
   };
 
-  const handlePaste = () => {
-    if (!clipboard.length) return toast.warn("Clipboard is empty.");
+  const resolveAdjustment = (adjVal, rateVal) => {
+    const trimmedAdj = String(adjVal || "").trim().toLowerCase();
+    const isAdj =
+      trimmedAdj === "y" ||
+      trimmedAdj === "yes" ||
+      trimmedAdj === "true" ||
+      trimmedAdj === "1" ||
+      trimmedAdj === "checked";
+
+    if (!isAdj) {
+      return { isAdjustment: "N", adjustmentCode: "N", rateName: "N/A" };
+    }
+
+    const trimmedRate = String(rateVal || "").trim().toLowerCase();
+    if (trimmedRate.startsWith("f") || trimmedRate.includes("final")) {
+      return { isAdjustment: "Y", adjustmentCode: "F", rateName: "Final" };
+    }
+    return { isAdjustment: "Y", adjustmentCode: "I", rateName: "Interim" };
+  };
+
+  const parseExcelDate = (val) => {
+    if (!val || !String(val).trim()) return "";
+    const s = String(val).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.split("T")[0];
+
+    if (/^\d{5}$/.test(s)) {
+      const excelDate = new Date((Number(s) - 25569) * 86400 * 1000);
+      if (!isNaN(excelDate.getTime())) {
+        return excelDate.toISOString().split("T")[0];
+      }
+    }
+
+    const parts = s.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      let p0 = parts[0];
+      let p1 = parts[1];
+      let p2 = parts[2];
+
+      if (p0.length === 4) {
+        return `${p0}-${p1.padStart(2, "0")}-${p2.padStart(2, "0")}`;
+      }
+      if (p2.length === 2) p2 = `20${p2}`;
+      if (p2.length === 4) {
+        const num0 = Number(p0);
+        const num1 = Number(p1);
+        if (num0 > 12 && num1 <= 12) {
+          return `${p2}-${String(num1).padStart(2, "0")}-${String(num0).padStart(2, "0")}`;
+        }
+        return `${p2}-${String(num0).padStart(2, "0")}-${String(num1).padStart(2, "0")}`;
+      }
+    }
+
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return s;
+  };
+
+  const processPastedText = (text) => {
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = [
+      "fiscal year",
+      "fycd",
+      "year",
+      "period",
+      "periodno",
+      "period end date",
+      "end date",
+      "status",
+      "statusname",
+      "adjustment flag",
+      "isadjustment",
+      "adjustment type",
+      "ratename",
+    ];
+
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) =>
+      headerKeys.includes(cell),
+    );
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
+    }
+
+    let fyCdIdx = -1;
+    let periodNoIdx = -1;
+    let endDateIdx = -1;
+    let statusIdx = -1;
+    let adjFlagIdx = -1;
+    let adjTypeIdx = -1;
+
+    if (isHeaderRow) {
+      fyCdIdx = firstLineCells.findIndex((cell) =>
+        ["fiscal year", "fycd", "year"].includes(cell),
+      );
+      periodNoIdx = firstLineCells.findIndex((cell) =>
+        ["period", "periodno", "period no"].includes(cell),
+      );
+      endDateIdx = firstLineCells.findIndex((cell) =>
+        ["period end date", "end date", "periodenddate", "enddate"].includes(cell),
+      );
+      statusIdx = firstLineCells.findIndex((cell) =>
+        ["status", "statuscd", "statusname"].includes(cell),
+      );
+      adjFlagIdx = firstLineCells.findIndex((cell) =>
+        ["adjustment flag", "adj flag", "isadjustment", "adj period"].includes(cell),
+      );
+      adjTypeIdx = firstLineCells.findIndex((cell) =>
+        ["adjustment type", "adj type", "ratename", "rate type"].includes(cell),
+      );
+    } else {
+      fyCdIdx = 0;
+      periodNoIdx = 1;
+      endDateIdx = 2;
+      statusIdx = 3;
+      adjFlagIdx = 4;
+      adjTypeIdx = 5;
+    }
+
+    // Map existing rows to check for existing (fyCd + periodNo)
+    const existingMap = new Map();
+    fycd.forEach((r) => {
+      if (r.fyCd && r.periodNo !== undefined && r.periodNo !== "" && !r.tempId) {
+        existingMap.set(`${String(r.fyCd).trim().toLowerCase()}_${String(r.periodNo).trim()}`, r);
+      }
+    });
+
+    let updatedExistingCount = 0;
+    let newRowsCount = 0;
+    const newPastedRows = [];
+    let updatedFycd = [...fycd];
+
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t");
+      const rawFyCd = fyCdIdx !== -1 && fyCdIdx < cells.length ? cells[fyCdIdx].trim() : "";
+      const rawPeriodNo = periodNoIdx !== -1 && periodNoIdx < cells.length ? cells[periodNoIdx].trim() : "";
+      const rawEndDate = endDateIdx !== -1 && endDateIdx < cells.length ? cells[endDateIdx].trim() : "";
+      const rawStatus = statusIdx !== -1 && statusIdx < cells.length ? cells[statusIdx].trim() : "";
+      const rawAdjFlag = adjFlagIdx !== -1 && adjFlagIdx < cells.length ? cells[adjFlagIdx].trim() : "";
+      const rawAdjType = adjTypeIdx !== -1 && adjTypeIdx < cells.length ? cells[adjTypeIdx].trim() : "";
+
+      if (!rawFyCd && !rawPeriodNo && !rawEndDate && !rawStatus) return;
+
+      const { statusCd, statusName } = resolveStatus(rawStatus);
+      const { isAdjustment, adjustmentCode, rateName } = resolveAdjustment(rawAdjFlag, rawAdjType);
+      const formattedDate = parseExcelDate(rawEndDate);
+      const parsedPeriodNo = rawPeriodNo ? Number(rawPeriodNo.replace(/\D/g, "")) : "";
+
+      const key = `${rawFyCd.toLowerCase()}_${parsedPeriodNo}`;
+      const existing = existingMap.get(key);
+
+      if (existing) {
+        const targetKey = getRowKey(existing);
+        updatedFycd = updatedFycd.map((r) => {
+          if (getRowKey(r) === targetKey) {
+            return {
+              ...r,
+              periodEndDate: formattedDate || r.periodEndDate,
+              statusCd: statusCd || r.statusCd,
+              statusName: statusName || r.statusName,
+              isAdjustment: isAdjustment || r.isAdjustment,
+              adjustmentCode: adjustmentCode || r.adjustmentCode,
+              rateName: rateName || r.rateName,
+              isDirty: true,
+            };
+          }
+          return r;
+        });
+        updatedExistingCount++;
+      } else {
+        const tempKey = `PASTE_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+        newPastedRows.push({
+          fyCd: rawFyCd,
+          periodNo: parsedPeriodNo,
+          periodEndDate: formattedDate,
+          statusCd,
+          statusName,
+          isAdjustment,
+          adjustmentCode,
+          rateName,
+          companyId: "1",
+          tempId: tempKey,
+          tableRowKey: tempKey,
+          isNew: true,
+          isDirty: true,
+        });
+        newRowsCount++;
+      }
+    });
+
+    if (updatedExistingCount === 0 && newPastedRows.length === 0) {
+      return toast.warn("No valid rows parsed from clipboard.");
+    }
+
+    const finalFycd = [...newPastedRows, ...updatedFycd];
+    setFycd(finalFycd);
+    if (finalFycd.length > 0) {
+      setSelectedFycdRow(finalFycd[0]);
+      setSelectedRows([finalFycd[0]]);
+    }
+
+    if (updatedExistingCount > 0 && newRowsCount > 0) {
+      toast.success(`Pasted: ${updatedExistingCount} existing record(s) updated, ${newRowsCount} new record(s) added.`);
+    } else if (updatedExistingCount > 0) {
+      toast.success(`Pasted: ${updatedExistingCount} existing record(s) updated. Click Save to persist.`);
+    } else {
+      toast.success(`${newRowsCount} record(s) pasted from clipboard. Please enter new Period values.`);
+    }
+  };
+
+  const handleCopy = async () => {
+    const rowsToCopy = isFormView
+      ? selectedFycdRow ? [selectedFycdRow] : []
+      : selectedRows && selectedRows.length > 0 ? selectedRows : (selectedFycdRow ? [selectedFycdRow] : []);
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one record to copy.");
+    }
+
+    setClipboard([...rowsToCopy]);
+
+    // Format TSV for Excel copy
+    const header = "Fiscal Year\tPeriod\tPeriod End Date\tStatus\tAdjustment Flag\tAdjustment Type";
+    const tsvLines = rowsToCopy.map((r) => {
+      const fy = r.fyCd ?? "";
+      const p = r.periodNo ?? "";
+      const d = r.periodEndDate ?? "";
+      const s = r.statusName ?? "";
+      const a = r.isAdjustment === "Y" ? "Y" : "N";
+      const t = r.rateName ?? "";
+      return `${fy}\t${p}\t${d}\t${s}\t${a}\t${t}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} record(s) copied to clipboard`);
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n"))) {
+        return processPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
+    if (!clipboard || clipboard.length === 0) {
+      return toast.warn("Clipboard is empty.");
+    }
 
     const pasted = clipboard.map((row, i) => {
       const { tempId, id, tableRowKey, ...restProps } = row;
@@ -966,6 +1293,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         tempId: newKey,
         tableRowKey: newKey,
         periodEndDate: "",
+        isNew: true,
         isDirty: true,
       };
     });
@@ -980,6 +1308,35 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       `${pasted.length} record(s) pasted. Please enter new Period values.`,
     );
   };
+
+  // Keyboard shortcut Ctrl+V for Excel paste
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text || !text.trim()) return;
+
+          const isInput =
+            e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+          const hasStructure = text.includes("\t") || text.includes("\n");
+
+          if (isInput && !hasStructure) {
+            return;
+          }
+
+          e.preventDefault();
+          e.stopPropagation();
+          processPastedText(text);
+        } catch (err) {
+          console.error("Ctrl+V readText error:", err);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [fycd, clipboard]);
 
   const handleClear = () => {
     const hasNewRows = fycd.some((f) => !!f.tempId);
@@ -1008,18 +1365,24 @@ const ManageAccountingPeriod = ({ canEdit }) => {
     useDraftStore.getState().clearDraft("manage-accounting-period");
     useRecentStore
       .getState()
+      .removeRecentPage?.("/dashboard/period");
+    useRecentStore
+      .getState()
       .removeRecentPage?.("/dashboard/manage-accountingperiod");
     navigate("/dashboard");
   };
 
-  // --- FIND & REPLACE LOGIC ---
+  // --- FIND & REPLACE LOGIC (SCOPED & DRILL-DOWN) ---
   const handleFind = () => {
     if (!searchValue || !searchValue.trim()) {
       toast.warn("Please enter or select search value");
       return;
     }
     const term = searchValue.toLowerCase().trim();
-    const matches = fycd.filter((row) => {
+    // Drill-down: if user already has an active filter, find within that filtered pool!
+    const pool = filteredGroups.length > 0 ? filteredGroups : fycd;
+
+    const matches = pool.filter((row) => {
       if (searchColumn === "all") {
         return (
           String(row.fyCd || "").toLowerCase().includes(term) ||
@@ -1039,7 +1402,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       return val.includes(term);
     });
     if (matches.length === 0) {
-      toast.info("No matching records found");
+      toast.info("No matching records found in current view");
     } else {
       toast.success(`${matches.length} matching record(s) found`);
       setFilteredGroups(matches);
@@ -1060,10 +1423,20 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       toast.warn("Please enter or select replace value");
       return;
     }
+
+    // Determine target pool: if user filtered, only replace within filtered subset!
+    const targetPool = filteredGroups.length > 0 ? filteredGroups : fycd;
+    const targetKeys = new Set(targetPool.map((r) => getRowKey(r)));
+
     let replacedCount = 0;
     const term = searchValue.trim();
 
     const updated = fycd.map((row) => {
+      // If row is not in current search/filtered subset, keep unchanged
+      if (!targetKeys.has(getRowKey(row))) {
+        return row;
+      }
+
       if (searchColumn === "isAdjustment") {
         const curVal = row.isAdjustment === "Y" ? "Y" : "N";
         if (curVal.toLowerCase() === term.toLowerCase() || (term === "Y" && curVal === "Y") || (term === "N" && curVal === "N")) {
@@ -1077,8 +1450,8 @@ const ManageAccountingPeriod = ({ canEdit }) => {
           return {
             ...row,
             isAdjustment: targetAdj,
-            adjustmentCode: targetAdj === "N" ? "N" : (row.adjustmentCode === "N" ? "" : row.adjustmentCode),
-            rateName: targetAdj === "N" ? "N/A" : (row.rateName === "N/A" ? "" : row.rateName),
+            adjustmentCode: targetAdj === "N" ? "N" : (row.adjustmentCode === "N" ? "I" : row.adjustmentCode),
+            rateName: targetAdj === "N" ? "N/A" : (row.rateName === "N/A" ? "Interim" : row.rateName),
             isDirty: true,
           };
         }
@@ -1135,6 +1508,12 @@ const ManageAccountingPeriod = ({ canEdit }) => {
 
     if (replacedCount > 0) {
       setFycd(updated);
+      if (filteredGroups.length > 0) {
+        const updatedFiltered = filteredGroups.map(
+          (r) => updated.find((u) => getRowKey(u) === getRowKey(r)) || r
+        );
+        setFilteredGroups(updatedFiltered);
+      }
       if (selectedFycdRow) {
         const updatedSelected = updated.find(
           (r) => getRowKey(r) === getRowKey(selectedFycdRow),
@@ -1177,7 +1556,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
           pDate.includes(q) ||
           stat.includes(q) ||
           rName.includes(q) ||
-          (isAdj && ("adjustment".includes(q) || "yes".includes(q) || "y".includes(q))) ||
+          (isAdj && ("adjustment".includes(q) || "yes".includes(q) || "y".includes(q) || "checked".includes(q))) ||
           (!isAdj && ("no".includes(q) || "n".includes(q) || "uncheck".includes(q)))
         );
       });
@@ -1189,6 +1568,20 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       // Keep new unsaved rows at top
       if (a.tempId && !b.tempId) return -1;
       if (!a.tempId && b.tempId) return 1;
+
+      if (sortColumn === "fyCd") {
+        const fyA = String(a.fyCd || "");
+        const fyB = String(b.fyCd || "");
+        const cmpFy = sortDirection === "asc"
+          ? fyA.localeCompare(fyB, undefined, { numeric: true })
+          : fyB.localeCompare(fyA, undefined, { numeric: true });
+        if (cmpFy !== 0) return cmpFy;
+
+        const dateA = a.periodEndDate ? new Date(a.periodEndDate).getTime() : 0;
+        const dateB = b.periodEndDate ? new Date(b.periodEndDate).getTime() : 0;
+        if (dateA !== dateB) return dateA - dateB;
+        return (Number(a.periodNo) || 0) - (Number(b.periodNo) || 0);
+      }
 
       const valA = a[sortColumn] ?? "";
       const valB = b[sortColumn] ?? "";
@@ -1237,26 +1630,26 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       const targetRow = displayData[newIdx];
       setSelectedFycdRow(targetRow);
       setSelectedRows([targetRow]);
-      setShowDatePicker(false);
-      setDatePickerRowId(null);
-    } else {
-      if (dir === "next") toast.info("You are at the last record.");
-      if (dir === "prev") toast.info("You are at the first record.");
     }
   };
 
   const handleRowSelection = (row) => {
+    const isSelected = selectedRows.some(
+      (r) => getRowKey(r) === getRowKey(row),
+    );
     const safeRows = Array.isArray(selectedRows) ? selectedRows : [];
-    const rowId = getRowKey(row);
-    const isSelected = safeRows.some((r) => getRowKey(r) === rowId);
 
     if (isSelected) {
-      const newSelection = safeRows.filter((r) => getRowKey(r) !== rowId);
-      setSelectedRows(newSelection);
-      if (getRowKey(selectedFycdRow) === rowId) {
+      const remaining = safeRows.filter(
+        (r) => getRowKey(r) !== getRowKey(row),
+      );
+      setSelectedRows(remaining);
+      if (getRowKey(selectedFycdRow) === getRowKey(row)) {
         setSelectedFycdRow(
-          newSelection.length > 0
-            ? newSelection[newSelection.length - 1]
+          remaining.length > 0
+            ? remaining[remaining.length - 1]
+            : fycd.length > 0
+            ? fycd[0]
             : null,
         );
       }
@@ -1372,13 +1765,19 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         setSelectedFycdRow(firstRow);
         setSelectedRows([firstRow]);
       } else if (selectedRows.length > 0 && !selectedFycdRow) {
-        setSelectedFycdRow(selectedRows[0]);
+        const firstSelected = selectedRows[0];
+        const rowToMap =
+          typeof firstSelected === "string"
+            ? fycd.find((f) => getRowKey(f) === firstSelected)
+            : firstSelected;
+
+        setSelectedFycdRow(rowToMap || fycd[0]);
       }
     }
     setIsFormView(!isFormView);
   };
 
-  const handleRowDoubleClick = (item) => {
+  const handleRowDoubleClick = (item, index) => {
     setSelectedFycdRow(item);
     setSelectedRows([item]);
     setIsFormView(true);
@@ -1396,12 +1795,12 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       <style>
         {`
         .payment-voucher-page { font-size:12px; color:#1f2937; }
-        .payment-voucher-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:4px; height:28px; padding:0 8px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
         .payment-voucher-page .voucher-head-btn:hover, .payment-voucher-page .voucher-icon-btn:hover, .payment-voucher-page .voucher-outline-btn:hover { background:#f5f8fb; border-color:#b9c8d8; }
-        .payment-voucher-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:4px; height:28px; padding:0 9px; border:1px solid #1677e8; border-radius:6px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
         .payment-voucher-page .voucher-primary-btn:hover { background:#125bc3; border-color:#125bc3; }
-        .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
-        .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#52657c; cursor:pointer; }
+        .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:4px; height:28px; padding:0 8px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#52657c; cursor:pointer; }
         .payment-voucher-page .voucher-head-btn:disabled,
         .payment-voucher-page .voucher-primary-btn:disabled,
         .payment-voucher-page .voucher-icon-btn:disabled,
@@ -1421,11 +1820,11 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         .payment-voucher-page .voucher-master-card > .grid { padding:12px; overflow:visible !important; }
         .payment-voucher-page .voucher-master-card .space-y-2 { gap:10px; position:relative; }
         .payment-voucher-page .voucher-panel-title { display:flex; align-items:center; min-height:36px; margin:0 12px 0; padding:0 0 0; border-bottom:1px solid #eeeeee; color:#3c4043; font-size:12px; font-weight:600; }
-        .payment-voucher-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; }
+        .payment-voucher-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; }
         .payment-voucher-page .voucher-nav-btn:last-child { border-right:0; }
         .payment-voucher-page .voucher-nav-btn:hover { background:#eaf1f7; color:#17414d; }
         .payment-voucher-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
-        .payment-voucher-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
+        .payment-voucher-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:28px; padding:0 6px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
         .payment-voucher-page .voucher-nested-tab { height:28px; padding:0 10px; border-radius:6px; background:#eaf2fe; color:#1677e8; border:1px solid #c9defc; font-size:11px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
         .payment-voucher-page .voucher-nested-tab:hover { background:#dbe9fd; }
         .payment-voucher-page .voucher-tab-pill { height:24px; padding:0 8px; border-radius:12px; font-size:10px; font-weight:700; display:inline-flex; align-items:center; background:#f1f5f9; color:#475569; }
@@ -1449,7 +1848,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
         `}
       </style>
 
-      {/* NEW UI TOP BAR */}
+      {/* TOP BAR */}
       <div className="h-[50px] border-b border-[#e5e7eb] bg-white px-5 ml-[15px]">
         <div className="flex h-full items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-2 text-[11px] text-[#7b8798]">
@@ -1459,24 +1858,14 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             <span>›</span>
             <span className="truncate">Period</span>
           </div>
-
-          <button
-            type="button"
-            onClick={handleCloseScreen}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md border border-slate-200 transition-all cursor-pointer"
-            title="Close screen and clear cache"
-          >
-            <X size={14} />
-            <span>Close</span>
-          </button>
         </div>
       </div>
 
-      {/* NEW UI PAGE HEADER */}
+      {/* PAGE HEADER */}
       <div className="border-b border-[#dbe3eb] bg-white ml-[15px]">
         <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-[18px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h1 className="text-[17px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
               Period
             </h1>
             <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
@@ -1487,7 +1876,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                 onClick={() => handleNavigate("start")}
                 disabled={currentIndex <= 0}
               >
-                <ChevronsLeft size={16} strokeWidth={1.5} />
+                <ChevronsLeft size={15} strokeWidth={1.5} />
               </button>
               <button
                 type="button"
@@ -1496,7 +1885,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                 onClick={() => handleNavigate("prev")}
                 disabled={currentIndex <= 0}
               >
-                <ChevronLeft size={16} strokeWidth={1.5} />
+                <ChevronLeft size={15} strokeWidth={1.5} />
               </button>
               <span className="voucher-count">
                 {selectedFycdRow && displayData.length > 0
@@ -1513,7 +1902,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                 onClick={() => handleNavigate("next")}
                 disabled={currentIndex >= displayData.length - 1}
               >
-                <ChevronRight size={16} strokeWidth={1.5} />
+                <ChevronRight size={15} strokeWidth={1.5} />
               </button>
               <button
                 type="button"
@@ -1522,28 +1911,28 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                 onClick={() => handleNavigate("end")}
                 disabled={currentIndex >= displayData.length - 1}
               >
-                <ChevronsRight size={16} strokeWidth={1.5} />
+                <ChevronsRight size={15} strokeWidth={1.5} />
               </button>
             </div>
 
             {/* Quick Search on Toolbar */}
-            <div className="relative flex items-center ml-2">
+            <div className="relative flex items-center ml-1">
               <Search
-                size={14}
-                className="absolute left-2.5 text-slate-400 pointer-events-none"
+                size={13}
+                className="absolute left-2 text-slate-400 pointer-events-none"
               />
               <input
                 type="text"
                 placeholder="Search..."
                 value={searchTermProfiles}
                 onChange={(e) => setSearchTermProfiles(e.target.value)}
-                className="h-8 w-44 pl-8 pr-7 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
+                className="h-7 w-36 pl-7 pr-6 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
               />
               {searchTermProfiles && (
                 <button
                   type="button"
                   onClick={() => setSearchTermProfiles("")}
-                  className="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                   title="Clear search"
                 >
                   <X size={12} />
@@ -1552,13 +1941,13 @@ const ManageAccountingPeriod = ({ canEdit }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleAddFyCd}
               className="voucher-primary-btn"
             >
-              <Plus size={14} /> Create
+              <Plus size={13} /> Create
             </button>
 
             <button
@@ -1567,7 +1956,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               onClick={handleCopy}
               disabled={isCopyDisabled}
             >
-              <Copy size={14} />
+              <Copy size={13} />
               Copy
             </button>
 
@@ -1577,7 +1966,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               onClick={handlePaste}
               disabled={isPasteDisabled}
             >
-              <ClipboardPaste size={14} />
+              <ClipboardPaste size={13} />
               Paste
             </button>
 
@@ -1587,7 +1976,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               disabled={isDeleteDisabled}
               className="voucher-head-btn"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               Delete
             </button>
 
@@ -1601,7 +1990,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               }`}
               title="Find & Replace"
             >
-              <Replace size={14} />
+              <Replace size={13} />
               Find/Replace
             </button>
 
@@ -1609,8 +1998,9 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               type="button"
               onClick={handleClear}
               className="voucher-head-btn"
+              title="Reset unsaved changes"
             >
-              Cancel
+              Reset
             </button>
 
             <button
@@ -1618,19 +2008,29 @@ const ManageAccountingPeriod = ({ canEdit }) => {
               onClick={handleMasterSave}
               className="voucher-head-btn text-[#1677e8] border-[#1677e8]/40 hover:bg-[#1677e8]/5"
             >
-              <Save size={14} />
+              <Save size={13} />
               Save
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCloseScreen}
+              className="voucher-head-btn text-slate-600 hover:text-slate-800"
+              title="Close screen and clear cache"
+            >
+              <X size={13} />
+              Close
             </button>
 
             <button
               type="button"
               onClick={toggleView}
               disabled={loading}
-              className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
+              className="relative flex h-[28px] w-[74px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[2px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
             >
               <span
-                className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
-                  isFormView ? "left-[3px]" : "left-[41px]"
+                className={`absolute top-[2px] h-[22px] w-[34px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                  isFormView ? "left-[2px]" : "left-[36px]"
                 }`}
               />
               <span
@@ -1685,11 +2085,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                   {searchColumn === "isAdjustment" ? (
                     <select
                       value={searchValue}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSearchValue(val);
-                        if (!val) setFilteredGroups([]);
-                      }}
+                      onChange={(e) => setSearchValue(e.target.value)}
                       className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
                     >
                       <option value="">-- Find Flag --</option>
@@ -1699,11 +2095,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                   ) : searchColumn === "rateName" ? (
                     <select
                       value={searchValue}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSearchValue(val);
-                        if (!val) setFilteredGroups([]);
-                      }}
+                      onChange={(e) => setSearchValue(e.target.value)}
                       className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
                     >
                       <option value="">-- Find Type --</option>
@@ -1714,11 +2106,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                   ) : searchColumn === "statusName" ? (
                     <select
                       value={searchValue}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSearchValue(val);
-                        if (!val) setFilteredGroups([]);
-                      }}
+                      onChange={(e) => setSearchValue(e.target.value)}
                       className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 outline-none focus:border-[#1677e8] w-36"
                     >
                       <option value="">-- Find Status --</option>
@@ -1731,11 +2119,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
                       type="text"
                       placeholder="Find..."
                       value={searchValue}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSearchValue(val);
-                        if (!val || !val.trim()) setFilteredGroups([]);
-                      }}
+                      onChange={(e) => setSearchValue(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleFind()}
                       className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
                     />
