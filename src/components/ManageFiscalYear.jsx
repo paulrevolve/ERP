@@ -688,18 +688,11 @@ const ManageFiscalYear = ({ canEdit }) => {
       rateTypeIdx = 3;
     }
 
-    // Map existing rows to check for existing fyCd
-    const existingMap = new Map();
-    fycd.forEach((r) => {
-      if (r.fyCd && !r.tempId) {
-        existingMap.set(String(r.fyCd).trim().toLowerCase(), r);
-      }
-    });
+    const existingCodes = new Set(
+      fycd.filter((r) => !r.tempId && r.fyCd).map((r) => String(r.fyCd).trim().toLowerCase()),
+    );
 
-    let updatedExistingCount = 0;
-    let newRowsCount = 0;
     const pastedRows = [];
-    let updatedFycd = [...fycd];
 
     dataLines.forEach((line, i) => {
       const cells = line.split("\t");
@@ -726,75 +719,42 @@ const ManageFiscalYear = ({ canEdit }) => {
       const { statusCd, statusName } = resolveStatus(rawStatus);
       const { closeActTgtCd, rateName } = resolveRateType(rawRateType);
 
-      const existing = existingMap.get(rawFyCd.toLowerCase());
-      if (existing && rawFyCd) {
-        const targetKey = getRowKey(existing);
-        updatedFycd = updatedFycd.map((r) => {
-          if (getRowKey(r) === targetKey) {
-            return {
-              ...r,
-              fyDesc: rawFyDesc || r.fyDesc,
-              statusCd: statusCd || r.statusCd,
-              statusName: statusName || r.statusName,
-              closeActTgtCd: closeActTgtCd !== undefined ? closeActTgtCd : r.closeActTgtCd,
-              rateName: rateName || r.rateName,
-              isDirty: true,
-            };
-          }
-          return r;
-        });
-        updatedExistingCount++;
-      } else {
-        const tempIdVal = `PASTE_${Date.now()}_${i}_${Math.random()
-          .toString(36)
-          .substr(2, 5)}`;
+      const tempIdVal = `PASTE_${Date.now()}_${i}_${Math.random()
+        .toString(36)
+        .substr(2, 5)}`;
 
-        pastedRows.push({
-          fyCd: rawFyCd,
-          fyDesc: rawFyDesc || (rawFyCd ? `Fiscal Year ${rawFyCd}` : ""),
-          statusCd,
-          statusName,
-          closeActTgtCd,
-          rateName,
-          startDate:
-            rawFyCd && /^\d{4}$/.test(rawFyCd)
-              ? `${rawFyCd}-01-01`
-              : `${new Date().getFullYear()}-01-01`,
-          companyId: "1",
-          tempId: tempIdVal,
-          tableRowKey: tempIdVal,
-          isNew: true,
-          isDirty: true,
-        });
-        newRowsCount++;
+      let targetFyCd = rawFyCd;
+      if (rawFyCd && existingCodes.has(rawFyCd.toLowerCase())) {
+        targetFyCd = `${rawFyCd}-C`;
       }
+
+      pastedRows.push({
+        fyCd: targetFyCd,
+        fyDesc: rawFyDesc || (rawFyCd ? `Fiscal Year ${targetFyCd}` : ""),
+        statusCd,
+        statusName,
+        closeActTgtCd,
+        rateName,
+        startDate:
+          targetFyCd && /^\d{4}$/.test(targetFyCd)
+            ? `${targetFyCd}-01-01`
+            : `${new Date().getFullYear()}-01-01`,
+        companyId: "1",
+        tempId: tempIdVal,
+        tableRowKey: tempIdVal,
+        isNew: true,
+        isDirty: true,
+      });
     });
 
-    if (updatedExistingCount === 0 && pastedRows.length === 0) {
+    if (pastedRows.length === 0) {
       return toast.warn("No valid rows parsed from clipboard.");
     }
 
-    const finalFycd = [...pastedRows, ...updatedFycd];
-    setFycd(finalFycd);
-    if (pastedRows.length > 0) {
-      setSelectedFycdRow(pastedRows[0]);
-      setSelectedRows([pastedRows[0]]);
-    } else if (finalFycd.length > 0) {
-      setSelectedFycdRow(finalFycd[0]);
-      setSelectedRows([finalFycd[0]]);
-    }
-
-    if (updatedExistingCount > 0 && newRowsCount > 0) {
-      toast.success(
-        `Pasted: ${updatedExistingCount} existing record(s) updated, ${newRowsCount} new record(s) added.`,
-      );
-    } else if (updatedExistingCount > 0) {
-      toast.success(
-        `Pasted: ${updatedExistingCount} existing record(s) updated. Click Save to persist.`,
-      );
-    } else {
-      toast.success(`${newRowsCount} record(s) pasted from clipboard.`);
-    }
+    setFycd((prev) => [...pastedRows, ...prev]);
+    setSelectedFycdRow(pastedRows[0]);
+    setSelectedRows([pastedRows[0]]);
+    toast.success(`${pastedRows.length} record(s) pasted successfully.`);
   };
 
   const handleCopy = async () => {

@@ -1152,18 +1152,7 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       adjTypeIdx = 5;
     }
 
-    // Map existing rows to check for existing (fyCd + periodNo)
-    const existingMap = new Map();
-    fycd.forEach((r) => {
-      if (r.fyCd && r.periodNo !== undefined && r.periodNo !== "" && !r.tempId) {
-        existingMap.set(`${String(r.fyCd).trim().toLowerCase()}_${String(r.periodNo).trim()}`, r);
-      }
-    });
-
-    let updatedExistingCount = 0;
-    let newRowsCount = 0;
     const newPastedRows = [];
-    let updatedFycd = [...fycd];
 
     dataLines.forEach((line, i) => {
       const cells = line.split("\t");
@@ -1181,66 +1170,32 @@ const ManageAccountingPeriod = ({ canEdit }) => {
       const formattedDate = parseExcelDate(rawEndDate);
       const parsedPeriodNo = rawPeriodNo ? Number(rawPeriodNo.replace(/\D/g, "")) : "";
 
-      const key = `${rawFyCd.toLowerCase()}_${parsedPeriodNo}`;
-      const existing = existingMap.get(key);
-
-      if (existing) {
-        const targetKey = getRowKey(existing);
-        updatedFycd = updatedFycd.map((r) => {
-          if (getRowKey(r) === targetKey) {
-            return {
-              ...r,
-              periodEndDate: formattedDate || r.periodEndDate,
-              statusCd: statusCd || r.statusCd,
-              statusName: statusName || r.statusName,
-              isAdjustment: isAdjustment || r.isAdjustment,
-              adjustmentCode: adjustmentCode || r.adjustmentCode,
-              rateName: rateName || r.rateName,
-              isDirty: true,
-            };
-          }
-          return r;
-        });
-        updatedExistingCount++;
-      } else {
-        const tempKey = `PASTE_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
-        newPastedRows.push({
-          fyCd: rawFyCd,
-          periodNo: parsedPeriodNo,
-          periodEndDate: formattedDate,
-          statusCd,
-          statusName,
-          isAdjustment,
-          adjustmentCode,
-          rateName,
-          companyId: "1",
-          tempId: tempKey,
-          tableRowKey: tempKey,
-          isNew: true,
-          isDirty: true,
-        });
-        newRowsCount++;
-      }
+      const tempKey = `PASTE_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+      newPastedRows.push({
+        fyCd: rawFyCd,
+        periodNo: parsedPeriodNo,
+        periodEndDate: formattedDate,
+        statusCd,
+        statusName,
+        isAdjustment,
+        adjustmentCode,
+        rateName,
+        companyId: "1",
+        tempId: tempKey,
+        tableRowKey: tempKey,
+        isNew: true,
+        isDirty: true,
+      });
     });
 
-    if (updatedExistingCount === 0 && newPastedRows.length === 0) {
+    if (newPastedRows.length === 0) {
       return toast.warn("No valid rows parsed from clipboard.");
     }
 
-    const finalFycd = [...newPastedRows, ...updatedFycd];
-    setFycd(finalFycd);
-    if (finalFycd.length > 0) {
-      setSelectedFycdRow(finalFycd[0]);
-      setSelectedRows([finalFycd[0]]);
-    }
-
-    if (updatedExistingCount > 0 && newRowsCount > 0) {
-      toast.success(`Pasted: ${updatedExistingCount} existing record(s) updated, ${newRowsCount} new record(s) added.`);
-    } else if (updatedExistingCount > 0) {
-      toast.success(`Pasted: ${updatedExistingCount} existing record(s) updated. Click Save to persist.`);
-    } else {
-      toast.success(`${newRowsCount} record(s) pasted from clipboard. Please enter new Period values.`);
-    }
+    setFycd((prev) => [...newPastedRows, ...prev]);
+    setSelectedFycdRow(newPastedRows[0]);
+    setSelectedRows([newPastedRows[0]]);
+    toast.success(`${newPastedRows.length} record(s) pasted. Please enter new Period values.`);
   };
 
   const handleCopy = async () => {
