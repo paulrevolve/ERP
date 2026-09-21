@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Globe,
   Search,
@@ -26,6 +27,7 @@ import { toast } from "react-toastify";
 import { MainContainer, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
 import { useDraftStore } from "../store/useDraftStore";
+import { useRecentStore } from "../store/useRecentStore";
 
 const FormSection = ({ title, children, className = "", headerRight }) => (
   <div className={`bg-white border border-[#e5e7eb] rounded-lg shadow-xs overflow-hidden ${className}`}>
@@ -63,46 +65,19 @@ const CountryToolbar = ({
   selectedCount = 0,
   onToggleFindReplace,
   showFindReplace = false,
+  onCloseScreen,
 }) => {
   const { onAdd, onCopy, onPaste, onClear, onDelete, onSave, onToggleView } = actions;
   const hasSelection = isFormView ? (!!selectedRow && totalRecords > 0) : (selectedCount > 0);
   const isCopyDisabled = loading || !hasSelection;
   const isDeleteDisabled = loading || !hasSelection;
-  const isPasteDisabled = loading || !clipboard || clipboard.length === 0;
+  const isPasteDisabled = loading;
 
   return (
-    <div className="flex items-center justify-between gap-2 pb-2 px-2 flex-wrap">
-      {/* LEFT SECTION: Search & Navigation */}
-      <div className="flex items-center gap-3">
-        {setSearchValue && (
-          <div className="relative group">
-            <Search
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-[#1677e8] transition-colors"
-              size={14}
-              onClick={() => {
-                if (searchValue && jumpToCode) {
-                  jumpToCode(searchValue);
-                  setSearchValue("");
-                }
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="pl-8 pr-2.5 h-8 w-40 text-[11px] bg-[#f6f6f6] border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:bg-white focus:border-[#1677e8] transition-all"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && jumpToCode) {
-                  jumpToCode(searchValue);
-                  setSearchValue("");
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {isFormView && handleNavigate && (
+    <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-2 flex-wrap">
+      {/* LEFT SECTION: Navigation & Search */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        {handleNavigate && (
           <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
             {/* First */}
             <button
@@ -112,7 +87,7 @@ const CountryToolbar = ({
               disabled={currentIndex <= 0 || loading}
               onClick={() => handleNavigate("start")}
             >
-              <ChevronsLeft size={16} strokeWidth={1.5} />
+              <ChevronsLeft size={15} strokeWidth={1.5} />
             </button>
 
             {/* Previous */}
@@ -123,12 +98,12 @@ const CountryToolbar = ({
               disabled={currentIndex <= 0 || loading}
               onClick={() => handleNavigate("prev")}
             >
-              <ChevronLeft size={16} strokeWidth={1.5} />
+              <ChevronLeft size={15} strokeWidth={1.5} />
             </button>
 
             {/* Count */}
             <span className="voucher-count">
-              {totalRecords > 0 ? currentIndex + 1 : 0} / {totalRecords}
+              {totalRecords > 0 ? (currentIndex >= 0 ? currentIndex + 1 : 1) : 0} / {totalRecords}
             </span>
 
             {/* Next */}
@@ -139,7 +114,7 @@ const CountryToolbar = ({
               disabled={currentIndex >= totalRecords - 1 || loading}
               onClick={() => handleNavigate("next")}
             >
-              <ChevronRight size={16} strokeWidth={1.5} />
+              <ChevronRight size={15} strokeWidth={1.5} />
             </button>
 
             {/* Last */}
@@ -150,14 +125,45 @@ const CountryToolbar = ({
               disabled={currentIndex >= totalRecords - 1 || loading}
               onClick={() => handleNavigate("end")}
             >
-              <ChevronsRight size={16} strokeWidth={1.5} />
+              <ChevronsRight size={15} strokeWidth={1.5} />
             </button>
+          </div>
+        )}
+
+        {setSearchValue && (
+          <div className="relative flex items-center ml-1">
+            <Search
+              size={13}
+              className="absolute left-2 text-slate-400 pointer-events-none"
+            />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="h-7 w-36 pl-7 pr-6 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && jumpToCode) {
+                  jumpToCode(searchValue);
+                }
+              }}
+            />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => setSearchValue("")}
+                className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* RIGHT SECTION: Action Buttons */}
-      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
         {!buttonsDisable.includes("add") && onAdd && (
           <button
             type="button"
@@ -165,7 +171,7 @@ const CountryToolbar = ({
             disabled={loading}
             className="voucher-primary-btn"
           >
-            <Plus size={14} /> Create
+            <Plus size={13} /> Create
           </button>
         )}
 
@@ -176,7 +182,7 @@ const CountryToolbar = ({
             disabled={isCopyDisabled}
             className="voucher-head-btn"
           >
-            <Copy size={14} /> Copy
+            <Copy size={13} /> Copy
           </button>
         )}
 
@@ -187,7 +193,7 @@ const CountryToolbar = ({
             disabled={isPasteDisabled}
             className="voucher-head-btn"
           >
-            <ClipboardPaste size={14} /> Paste
+            <ClipboardPaste size={13} /> Paste
           </button>
         )}
 
@@ -198,7 +204,7 @@ const CountryToolbar = ({
             disabled={isDeleteDisabled}
             className="voucher-head-btn"
           >
-            <Trash2 size={14} /> Delete
+            <Trash2 size={13} /> Delete
           </button>
         )}
 
@@ -209,7 +215,7 @@ const CountryToolbar = ({
             className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
             title="Find & Replace"
           >
-            <Replace size={14} /> Find/Replace
+            <Replace size={13} /> Find/Replace
           </button>
         )}
 
@@ -219,8 +225,9 @@ const CountryToolbar = ({
             onClick={onClear}
             disabled={loading}
             className="voucher-head-btn"
+            title="Reset unsaved changes"
           >
-            Cancel
+            Reset
           </button>
         )}
 
@@ -229,9 +236,20 @@ const CountryToolbar = ({
             type="button"
             onClick={onSave}
             disabled={loading}
-            className="voucher-head-btn"
+            className="voucher-head-btn text-[#1677e8] border-[#1677e8]/40 hover:bg-[#1677e8]/5"
           >
-            <Save size={14} /> Save
+            <Save size={13} /> Save
+          </button>
+        )}
+
+        {onCloseScreen && (
+          <button
+            type="button"
+            onClick={onCloseScreen}
+            className="voucher-head-btn text-slate-600 hover:text-slate-800"
+            title="Close screen"
+          >
+            <X size={13} /> Close
           </button>
         )}
 
@@ -240,11 +258,11 @@ const CountryToolbar = ({
             type="button"
             onClick={onToggleView}
             disabled={loading}
-            className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50"
+            className="relative flex h-[28px] w-[74px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[2px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
           >
             <span
-              className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
-                isFormView ? "left-[3px]" : "left-[41px]"
+              className={`absolute top-[2px] h-[22px] w-[34px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                isFormView ? "left-[2px]" : "left-[36px]"
               }`}
             />
             <span
@@ -497,6 +515,11 @@ const ManageCountry = () => {
   const [stateSearchValue, setStateSearchValue] = useState("");
   const [stateCurrentIndex, setStateCurrentIndex] = useState(0);
   const [stateClipboard, setStateClipboard] = useState([]);
+  const [showStateFindReplace, setShowStateFindReplace] = useState(false);
+  const [stateSearchColumn, setStateSearchColumn] = useState("all");
+  const [stateFindValue, setStateFindValue] = useState("");
+  const [stateReplaceValue, setStateReplaceValue] = useState("");
+  const [stateFilteredGroups, setStateFilteredGroups] = useState([]);
 
   // Level 3 - Postal Code State Variables
   const [selectedPostal, setSelectedPostal] = useState(null);
@@ -505,6 +528,19 @@ const ManageCountry = () => {
   const [postalSearchValue, setPostalSearchValue] = useState("");
   const [postalCurrentIndex, setPostalCurrentIndex] = useState(0);
   const [postalClipboard, setPostalClipboard] = useState([]);
+  const [showPostalFindReplace, setShowPostalFindReplace] = useState(false);
+  const [postalSearchColumn, setPostalSearchColumn] = useState("all");
+  const [postalFindValue, setPostalFindValue] = useState("");
+  const [postalReplaceValue, setPostalReplaceValue] = useState("");
+  const [postalFilteredGroups, setPostalFilteredGroups] = useState([]);
+
+  const navigate = useNavigate();
+  const handleCloseScreen = () => {
+    useDraftStore.getState().clearDraft("manage-countries");
+    useRecentStore.getState().removeRecentPage?.("/dashboard/countries");
+    useRecentStore.getState().removeRecentPage?.("/dashboard/manage-countries");
+    navigate("/dashboard");
+  };
 
   const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
 
@@ -658,15 +694,19 @@ const ManageCountry = () => {
       searchValue.trim() ? countries.filter((c) => {
         const term = searchValue.toLowerCase().trim();
         return (
-          String(c.countryCode).toLowerCase().includes(term) ||
-          String(c.countryName).toLowerCase().includes(term)
+          String(c.countryCode || "").toLowerCase().includes(term) ||
+          String(c.countryName || "").toLowerCase().includes(term) ||
+          String(c.locale || "").toLowerCase().includes(term) ||
+          String(c.iso2Code || "").toLowerCase().includes(term) ||
+          String(c.iso3Code || "").toLowerCase().includes(term) ||
+          String(c.modifiedBy || "").toLowerCase().includes(term)
         );
       }) : countries
     );
     if (!sortColumn) return base;
     return [...base].sort((a, b) => {
-      if (a.isNew && !b.isNew) return -1;
-      if (!a.isNew && b.isNew) return 1;
+      if ((a.isNew || a.tempId) && !(b.isNew || b.tempId)) return -1;
+      if (!(a.isNew || a.tempId) && (b.isNew || b.tempId)) return 1;
       const valA = a[sortColumn] ?? "";
       const valB = b[sortColumn] ?? "";
       return sortDirection === "asc"
@@ -674,6 +714,20 @@ const ManageCountry = () => {
         : String(valB).localeCompare(String(valA), undefined, { numeric: true });
     });
   }, [countries, filteredGroups, searchValue, sortColumn, sortDirection]);
+
+  // Global search sync with active record in Form View
+  useEffect(() => {
+    if (searchValue && displayCountries.length > 0) {
+      const isCurrentInDisplay = displayCountries.some(
+        (r) => getRowKey(r) === getRowKey(selectedCountry),
+      );
+      if (!isCurrentInDisplay) {
+        setSelectedCountry(displayCountries[0]);
+        setSelectedCountryCodes(new Set([getRowKey(displayCountries[0])]));
+        loadCountryDetails(displayCountries[0]);
+      }
+    }
+  }, [searchValue, displayCountries]);
 
   // --- Draft Store Hydration on Mount ---
   useEffect(() => {
@@ -700,6 +754,12 @@ const ManageCountry = () => {
       if (draft.selectedCountry) setSelectedCountry(draft.selectedCountry);
       if (draft.selectedCountryCodes)
         setSelectedCountryCodes(new Set(draft.selectedCountryCodes));
+      if (draft.selectedState) setSelectedState(draft.selectedState);
+      if (draft.selectedStateCodes)
+        setSelectedStateCodes(new Set(draft.selectedStateCodes));
+      if (draft.selectedPostal) setSelectedPostal(draft.selectedPostal);
+      if (draft.selectedPostalCodes)
+        setSelectedPostalCodes(new Set(draft.selectedPostalCodes));
       if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
       if (typeof draft.isStateFormView === "boolean") setIsStateFormView(draft.isStateFormView);
       if (typeof draft.isPostalFormView === "boolean") setIsPostalFormView(draft.isPostalFormView);
@@ -712,6 +772,10 @@ const ManageCountry = () => {
   const countriesRef = useRef(countries);
   const selectedCountryRef = useRef(selectedCountry);
   const selectedCountryCodesRef = useRef(selectedCountryCodes);
+  const selectedStateRef = useRef(selectedState);
+  const selectedStateCodesRef = useRef(selectedStateCodes);
+  const selectedPostalRef = useRef(selectedPostal);
+  const selectedPostalCodesRef = useRef(selectedPostalCodes);
   const isFormViewRef = useRef(isFormView);
   const isStateFormViewRef = useRef(isStateFormView);
   const isPostalFormViewRef = useRef(isPostalFormView);
@@ -720,6 +784,10 @@ const ManageCountry = () => {
     countriesRef.current = countries;
     selectedCountryRef.current = selectedCountry;
     selectedCountryCodesRef.current = selectedCountryCodes;
+    selectedStateRef.current = selectedState;
+    selectedStateCodesRef.current = selectedStateCodes;
+    selectedPostalRef.current = selectedPostal;
+    selectedPostalCodesRef.current = selectedPostalCodes;
     isFormViewRef.current = isFormView;
     isStateFormViewRef.current = isStateFormView;
     isPostalFormViewRef.current = isPostalFormView;
@@ -740,6 +808,10 @@ const ManageCountry = () => {
         countries,
         selectedCountry,
         selectedCountryCodes: Array.from(selectedCountryCodes),
+        selectedState,
+        selectedStateCodes: Array.from(selectedStateCodes),
+        selectedPostal,
+        selectedPostalCodes: Array.from(selectedPostalCodes),
         isFormView,
         isStateFormView,
         isPostalFormView,
@@ -751,6 +823,10 @@ const ManageCountry = () => {
     countries,
     selectedCountry,
     selectedCountryCodes,
+    selectedState,
+    selectedStateCodes,
+    selectedPostal,
+    selectedPostalCodes,
     isFormView,
     isStateFormView,
     isPostalFormView,
@@ -777,6 +853,10 @@ const ManageCountry = () => {
           countries: cur,
           selectedCountry: selectedCountryRef.current,
           selectedCountryCodes: Array.from(selectedCountryCodesRef.current),
+          selectedState: selectedStateRef.current,
+          selectedStateCodes: Array.from(selectedStateCodesRef.current),
+          selectedPostal: selectedPostalRef.current,
+          selectedPostalCodes: Array.from(selectedPostalCodesRef.current),
           isFormView: isFormViewRef.current,
           isStateFormView: isStateFormViewRef.current,
           isPostalFormView: isPostalFormViewRef.current,
@@ -1152,47 +1232,225 @@ const ManageCountry = () => {
     }
   };
 
-  const handleCopy = () => {
-    if (!selectedCountry) {
-      toast.warn("Select a record to copy first.");
-      return;
+  const processPastedText = (text) => {
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
     }
-    setClipboard([selectedCountry]);
-    toast.success("Record copied.");
-  };
 
-  const handlePaste = () => {
-    if (clipboard.length === 0) {
-      toast.warn("Nothing to paste.");
-      return;
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = [
+      "country code", "countrycode", "code", "country",
+      "country name", "countryname", "name", "desc", "description",
+    ];
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) =>
+      headerKeys.some(k => cell === k || cell.includes(k))
+    );
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
     }
-    const target = clipboard[0];
-    const newId = `TEMP_${Date.now()}`;
-    const pastedRow = {
-      ...target,
-      countryCode: `${target.countryCode}-C`,
-      tempId: newId,
-      isNew: true,
-      isDirty: true,
-      states: (target.states || []).map((s, idx) => ({
-        ...s,
-        tempId: `STATE_${Date.now()}_${idx}`,
+
+    let codeIdx = -1;
+    let nameIdx = -1;
+
+    if (isHeaderRow) {
+      codeIdx = firstLineCells.findIndex((cell) =>
+        ["country code", "countrycode", "code", "country"].some(k => cell === k || cell.includes(k))
+      );
+      nameIdx = firstLineCells.findIndex((cell) =>
+        ["country name", "countryname", "name", "desc", "description"].some(k => cell === k || cell.includes(k))
+      );
+    } else {
+      codeIdx = 0;
+      nameIdx = 1;
+    }
+
+    const existingCodes = new Set(
+      countries
+        .filter((r) => !r.tempId && r.countryCode)
+        .map((r) => String(r.countryCode).trim().toLowerCase()),
+    );
+
+    const pastedRows = [];
+
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
+
+      const rawCode =
+        codeIdx !== -1 && codeIdx < cells.length ? cells[codeIdx] : (cells[0] || "");
+      const rawName =
+        nameIdx !== -1 && nameIdx < cells.length ? cells[nameIdx] : (cells[1] || "");
+
+      if (!rawCode && !rawName) {
+        return;
+      }
+
+      const tempIdVal = `TEMP_PASTE_${Date.now()}_${i}_${Math.random()
+        .toString(36)
+        .substr(2, 5)}`;
+
+      let targetCode = rawCode ? rawCode.toUpperCase().slice(0, 10) : "";
+      if (rawCode && existingCodes.has(rawCode.toLowerCase())) {
+        targetCode = `${rawCode}-C`;
+      }
+
+      pastedRows.push({
+        ...initialCountryState,
+        countryCode: targetCode,
+        countryName: rawName || (rawCode ? `Country ${targetCode}` : ""),
+        locale: targetCode,
+        iso2Code: targetCode.slice(0, 2),
+        iso3Code: targetCode.slice(0, 3),
+        tempId: tempIdVal,
+        uniqueKey: tempIdVal,
         isNew: true,
         isDirty: true,
-        postalCodes: (s.postalCodes || []).map((p, pidx) => ({
-          ...p,
-          tempId: `POSTAL_${Date.now()}_${idx}_${pidx}`,
-          isNew: true,
-          isDirty: true
-        }))
-      }))
-    };
-    setCountries([pastedRow, ...countries]);
-    setSelectedCountryCodes(new Set([newId]));
-    setSelectedCountry(pastedRow);
+        states: [],
+      });
+    });
+
+    if (pastedRows.length === 0) {
+      return toast.warn("No valid rows parsed from clipboard.");
+    }
+
+    setCountries((prev) => [...pastedRows, ...prev]);
+    setSelectedCountry(pastedRows[0]);
+    setSelectedCountryCodes(new Set([pastedRows[0].uniqueKey]));
     setCurrentIndex(0);
-    toast.success("Record pasted successfully.");
+    toast.success(`${pastedRows.length} record(s) pasted successfully.`);
   };
+
+  const handleCopy = async () => {
+    const rowsToCopy = isFormView
+      ? (selectedCountry ? [selectedCountry] : [])
+      : (selectedCountryCodes.size > 0
+          ? countries.filter((c) => selectedCountryCodes.has(getRowKey(c)))
+          : (selectedCountry ? [selectedCountry] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one record to copy.");
+    }
+
+    setClipboard([...rowsToCopy]);
+
+    // Format TSV for Excel copy - only Country Code and Country Name
+    const header = "Country Code\tCountry Name";
+    const tsvLines = rowsToCopy.map((r) => {
+      const code = r.countryCode ?? "";
+      const name = r.countryName ?? "";
+      return `${code}\t${name}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} record(s) copied to clipboard`);
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
+    if (!clipboard || clipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy a record first.");
+    }
+
+    const pasted = clipboard.map((target, idx) => {
+      const tempId = `TEMP_PASTE_${Date.now()}_${idx}`;
+      return {
+        ...target,
+        countryCode: target.countryCode ? `${target.countryCode}-C` : "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true,
+        states: (target.states || []).map((s, sIdx) => ({
+          ...s,
+          tempId: `STATE_${Date.now()}_${sIdx}`,
+          uniqueKey: `STATE_${Date.now()}_${sIdx}`,
+          isNew: true,
+          isDirty: true,
+          postalCodes: (s.postalCodes || []).map((p, pidx) => ({
+            ...p,
+            tempId: `POSTAL_${Date.now()}_${sIdx}_${pidx}`,
+            uniqueKey: `POSTAL_${Date.now()}_${sIdx}_${pidx}`,
+            isNew: true,
+            isDirty: true,
+          })),
+        })),
+      };
+    });
+
+    setCountries((prev) => [...pasted, ...prev]);
+    setSelectedCountry(pasted[0]);
+    setSelectedCountryCodes(new Set([pasted[0].uniqueKey]));
+    setCurrentIndex(0);
+    toast.success(`${pasted.length} record(s) pasted successfully.`);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text || !text.trim()) return;
+
+          const isInput =
+            e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+          const hasStructure = text.includes("\t") || text.includes("\n");
+
+          if (isInput && !hasStructure) {
+            return;
+          }
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          const lowerText = text.toLowerCase();
+          const targetInPostal = e.target.closest && e.target.closest('[data-section="postal"]');
+          const targetInState = e.target.closest && e.target.closest('[data-section="state"]');
+
+          if (targetInPostal || (selectedState && (lowerText.startsWith("postal") || lowerText.includes("postal code") || lowerText.includes("city\t") || lowerText.includes("\tcity")))) {
+            if (selectedState) {
+              return processPostalPastedText(text);
+            }
+          }
+
+          if (targetInState || (selectedCountry && (lowerText.startsWith("state") || lowerText.includes("state code") || lowerText.includes("state\t") || lowerText.includes("\tstate")))) {
+            if (selectedCountry) {
+              return processStatePastedText(text);
+            }
+          }
+
+          processPastedText(text);
+        } catch (err) {
+          console.error("Ctrl+V readText error:", err);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [countries, clipboard, selectedCountry, selectedState, stateClipboard, postalClipboard]);
 
   const handleDiscard = () => {
     useDraftStore.getState().clearDraft("manage-countries");
@@ -1365,6 +1623,77 @@ const ManageCountry = () => {
     }
   };
 
+  // Memoized State & Postal Data
+  const visibleStates = useMemo(() => {
+    return countries
+      .filter(c => selectedCountryCodes.has(getRowKey(c)))
+      .flatMap(c => c.states || []);
+  }, [countries, selectedCountryCodes]);
+
+  const displayStates = useMemo(() => {
+    const base = stateFilteredGroups.length > 0 ? stateFilteredGroups : (
+      stateSearchValue.trim() ? visibleStates.filter((s) => {
+        const term = stateSearchValue.toLowerCase().trim();
+        return (
+          String(s.stateCode || "").toLowerCase().includes(term) ||
+          String(s.state || "").toLowerCase().includes(term) ||
+          String(s.countryCode || "").toLowerCase().includes(term)
+        );
+      }) : visibleStates
+    );
+    return base;
+  }, [visibleStates, stateFilteredGroups, stateSearchValue]);
+
+  const visiblePostalCodes = useMemo(() => {
+    return visibleStates
+      .filter(s => selectedStateCodes.has(getStateKey(s)))
+      .flatMap(s => s.postalCodes || []);
+  }, [visibleStates, selectedStateCodes]);
+
+  const displayPostalCodes = useMemo(() => {
+    const base = postalFilteredGroups.length > 0 ? postalFilteredGroups : (
+      postalSearchValue.trim() ? visiblePostalCodes.filter((p) => {
+        const term = postalSearchValue.toLowerCase().trim();
+        return (
+          String(p.postalCode || "").toLowerCase().includes(term) ||
+          String(p.city || "").toLowerCase().includes(term) ||
+          String(p.stateCode || "").toLowerCase().includes(term) ||
+          String(p.countryCode || "").toLowerCase().includes(term)
+        );
+      }) : visiblePostalCodes
+    );
+    return base;
+  }, [visiblePostalCodes, postalFilteredGroups, postalSearchValue]);
+
+  // Global search sync with active record in Form View for State and Postal
+  useEffect(() => {
+    if (stateSearchValue && displayStates.length > 0) {
+      const isCurrentInDisplay = displayStates.some(
+        (s) => getStateKey(s) === getStateKey(selectedState),
+      );
+      if (!isCurrentInDisplay) {
+        const first = displayStates[0];
+        setSelectedState(first);
+        setSelectedStateCodes(new Set([getStateKey(first)]));
+        const parentCountryCode = first.countryCode || selectedCountry?.countryCode;
+        loadStateDetails(parentCountryCode, first);
+      }
+    }
+  }, [stateSearchValue, displayStates]);
+
+  useEffect(() => {
+    if (postalSearchValue && displayPostalCodes.length > 0) {
+      const isCurrentInDisplay = displayPostalCodes.some(
+        (p) => getPostalKey(p) === getPostalKey(selectedPostal),
+      );
+      if (!isCurrentInDisplay) {
+        const first = displayPostalCodes[0];
+        setSelectedPostal(first);
+        setSelectedPostalCodes(new Set([getPostalKey(first)]));
+      }
+    }
+  }, [postalSearchValue, displayPostalCodes]);
+
   const handleStateAdd = () => {
     if (!selectedCountry) return;
     const tempId = `STATE_${Date.now()}`;
@@ -1385,46 +1714,237 @@ const ManageCountry = () => {
     setStateCurrentIndex(0);
   };
 
-  const handleStateCopy = () => {
-    if (!selectedState) {
-      toast.warn("Select a state row to copy first.");
-      return;
+  const handleStateCopy = async () => {
+    const states = displayStates;
+    const rowsToCopy = isStateFormView
+      ? (selectedState ? [selectedState] : [])
+      : (selectedStateCodes.size > 0
+          ? states.filter((s) => selectedStateCodes.has(getStateKey(s)))
+          : (selectedState ? [selectedState] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one state record to copy.");
     }
-    setStateClipboard([selectedState]);
-    toast.success("State record copied.");
+
+    setStateClipboard([...rowsToCopy]);
+
+    const header = "State Code\tState";
+    const tsvLines = rowsToCopy.map((s) => {
+      const code = s.stateCode ?? "";
+      const name = s.state ?? "";
+      return `${code}\t${name}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} state record(s) copied to clipboard`);
   };
 
-  const handleStatePaste = () => {
-    if (!selectedCountry || stateClipboard.length === 0) {
-      toast.warn("Nothing to paste.");
-      return;
+  const processStatePastedText = (text) => {
+    if (!selectedCountry) return toast.warn("Select a country first.");
+    if (!text || !text.trim()) return toast.warn("Clipboard is empty.");
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = ["state code", "statecode", "state", "statename", "code", "name"];
+    const firstLineCells = lines[0].split("\t").map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) => ["state code", "statecode", "state", "statename"].includes(cell));
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) return toast.warn("No data rows found to paste.");
+
+    let stateCodeIdx = -1;
+    let stateIdx = -1;
+
+    if (isHeaderRow) {
+      stateCodeIdx = firstLineCells.findIndex((c) => ["state code", "statecode", "code"].includes(c));
+      stateIdx = firstLineCells.findIndex((c) => ["state", "statename", "name", "description"].includes(c));
+    } else {
+      stateCodeIdx = 0;
+      stateIdx = 1;
     }
-    const target = stateClipboard[0];
-    const tempId = `STATE_${Date.now()}`;
-    const pastedRow = {
-      ...target,
-      stateCode: `${target.stateCode}-C`,
-      tempId,
-      uniqueKey: tempId,
-      isNew: true,
-      isDirty: true,
-      postalCodes: (target.postalCodes || []).map((p, idx) => {
-        const pTempId = `POSTAL_${Date.now()}_${idx}`;
-        return {
+
+    const existingCodes = new Set(
+      (selectedCountry.states || []).map((s) => String(s.stateCode || "").trim().toLowerCase())
+    );
+
+    const pastedRows = [];
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
+      const rawCode = stateCodeIdx !== -1 && stateCodeIdx < cells.length ? cells[stateCodeIdx] : (cells[0] || "");
+      const rawState = stateIdx !== -1 && stateIdx < cells.length ? cells[stateIdx] : (cells[1] || "");
+
+      if (!rawCode && !rawState) return;
+
+      let targetCode = rawCode ? rawCode.toUpperCase().slice(0, 10) : "";
+      if (rawCode && existingCodes.has(rawCode.toLowerCase())) {
+        targetCode = `${rawCode}-C`;
+      }
+
+      const tempId = `STATE_PASTE_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+      pastedRows.push({
+        stateCode: targetCode,
+        state: rawState || targetCode,
+        countryCode: selectedCountry.countryCode || "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true,
+        postalCodes: []
+      });
+    });
+
+    if (pastedRows.length === 0) return toast.warn("No valid state rows parsed from clipboard.");
+
+    const updatedStates = [...pastedRows, ...(selectedCountry.states || [])];
+    updateSelectedCountry({ states: updatedStates });
+    setSelectedState(pastedRows[0]);
+    setSelectedStateCodes(new Set([pastedRows[0].tempId]));
+    setStateCurrentIndex(0);
+    toast.success(`${pastedRows.length} state record(s) pasted successfully.`);
+  };
+
+  const handleStatePaste = async () => {
+    if (!selectedCountry) return toast.warn("Select a country first.");
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processStatePastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
+    if (!stateClipboard || stateClipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy a state record first.");
+    }
+
+    const pastedRows = stateClipboard.map((target, i) => {
+      const tempId = `STATE_PASTE_${Date.now()}_${i}`;
+      return {
+        ...target,
+        stateCode: target.stateCode ? `${target.stateCode}-C` : "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true,
+        postalCodes: (target.postalCodes || []).map((p, idx) => ({
           ...p,
-          tempId: pTempId,
-          uniqueKey: pTempId,
+          tempId: `POSTAL_${Date.now()}_${idx}`,
+          uniqueKey: `POSTAL_${Date.now()}_${idx}`,
           isNew: true,
           isDirty: true
-        };
-      })
-    };
-    const updatedStates = [pastedRow, ...(selectedCountry.states || [])];
+        }))
+      };
+    });
+
+    const updatedStates = [...pastedRows, ...(selectedCountry.states || [])];
     updateSelectedCountry({ states: updatedStates });
-    setSelectedState(pastedRow);
-    setSelectedStateCodes(new Set([tempId]));
+    setSelectedState(pastedRows[0]);
+    setSelectedStateCodes(new Set([pastedRows[0].tempId]));
     setStateCurrentIndex(0);
-    toast.success("State record pasted successfully.");
+    toast.success(`${pastedRows.length} state record(s) pasted successfully.`);
+  };
+
+  const handleStateFind = () => {
+    if (!stateFindValue.trim()) {
+      setStateFilteredGroups([]);
+      return toast.info("State search filter cleared.");
+    }
+    const term = stateFindValue.toLowerCase().trim();
+    const matches = (visibleStates || []).filter((row) => {
+      if (stateSearchColumn === "stateCode") return String(row.stateCode || "").toLowerCase().includes(term);
+      if (stateSearchColumn === "state") return String(row.state || "").toLowerCase().includes(term);
+      return (
+        String(row.stateCode || "").toLowerCase().includes(term) ||
+        String(row.state || "").toLowerCase().includes(term) ||
+        String(row.countryCode || "").toLowerCase().includes(term)
+      );
+    });
+
+    setStateFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching state records found.");
+    } else {
+      setSelectedStateCodes(new Set([getStateKey(matches[0])]));
+      setSelectedState(matches[0]);
+      toast.success(`Found ${matches.length} matching state record(s).`);
+    }
+  };
+
+  const handleStateReplaceAll = () => {
+    if (stateSearchColumn === "stateCode") {
+      return toast.warn("State Code cannot be modified via Replace.");
+    }
+    if (!stateFindValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = stateFindValue.trim();
+    let replaceCount = 0;
+
+    const targetList = stateFilteredGroups.length > 0 ? stateFilteredGroups : visibleStates;
+    const targetKeys = new Set(targetList.map((r) => getStateKey(r)));
+
+    const updatedStates = (selectedCountry?.states || []).map((row) => {
+      if (!targetKeys.has(getStateKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        stateSearchColumn === "all"
+          ? ["state"]
+          : stateSearchColumn === "stateCode" && row.isNew
+          ? ["stateCode"]
+          : [stateSearchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, stateReplaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      updateSelectedCountry({ states: updatedStates });
+      if (selectedState) {
+        const found = updatedStates.find((r) => getStateKey(r) === getStateKey(selectedState));
+        if (found) {
+          setSelectedState(found);
+          setSelectedStateCodes(new Set([getStateKey(found)]));
+        }
+      }
+      if (stateFilteredGroups.length > 0) {
+        setStateFilteredGroups(stateFilteredGroups.map(fg => updatedStates.find(u => getStateKey(u) === getStateKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleStateClearFind = () => {
+    setStateFindValue("");
+    setStateReplaceValue("");
+    setStateFilteredGroups([]);
   };
 
   const handleStateDelete = async () => {
@@ -1478,7 +1998,7 @@ const ManageCountry = () => {
   };
 
   const handleStateNavigate = async (direction) => {
-    const states = visibleStates;
+    const states = displayStates;
     if (states.length === 0) return;
     let nextIdx = stateCurrentIndex;
     if (direction === "start") nextIdx = 0;
@@ -1634,36 +2154,231 @@ const ManageCountry = () => {
     setPostalCurrentIndex(0);
   };
 
-  const handlePostalCopy = () => {
-    if (!selectedPostal) {
-      toast.warn("Select a postal code row to copy first.");
-      return;
+  const handlePostalCopy = async () => {
+    const postals = displayPostalCodes;
+    const rowsToCopy = isPostalFormView
+      ? (selectedPostal ? [selectedPostal] : [])
+      : (selectedPostalCodes.size > 0
+          ? postals.filter((p) => selectedPostalCodes.has(getPostalKey(p)))
+          : (selectedPostal ? [selectedPostal] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one postal code record to copy.");
     }
-    setPostalClipboard([selectedPostal]);
-    toast.success("Postal code record copied.");
+
+    setPostalClipboard([...rowsToCopy]);
+
+    const header = "Postal Code\tCity";
+    const tsvLines = rowsToCopy.map((p) => {
+      const code = p.postalCode ?? "";
+      const city = p.city ?? "";
+      return `${code}\t${city}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} postal code record(s) copied to clipboard`);
   };
 
-  const handlePostalPaste = () => {
-    if (!selectedState || postalClipboard.length === 0) {
-      toast.warn("Nothing to paste.");
-      return;
+  const processPostalPastedText = (text) => {
+    if (!selectedState) return toast.warn("Select a state first.");
+    if (!text || !text.trim()) return toast.warn("Clipboard is empty.");
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = ["postal code", "postalcode", "code", "postal", "city", "city name", "cityname"];
+    const firstLineCells = lines[0].split("\t").map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) => ["postal code", "postalcode", "postal", "city"].includes(cell));
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) return toast.warn("No data rows found to paste.");
+
+    let postalCodeIdx = -1;
+    let cityIdx = -1;
+
+    if (isHeaderRow) {
+      postalCodeIdx = firstLineCells.findIndex((c) => ["postal code", "postalcode", "postal", "code"].includes(c));
+      cityIdx = firstLineCells.findIndex((c) => ["city", "city name", "cityname"].includes(c));
+    } else {
+      postalCodeIdx = 0;
+      cityIdx = 1;
     }
-    const target = postalClipboard[0];
-    const tempId = `POSTAL_${Date.now()}`;
-    const pastedRow = {
-      ...target,
-      postalCode: `${target.postalCode}-C`,
-      tempId,
-      uniqueKey: tempId,
-      isNew: true,
-      isDirty: true
-    };
-    const updatedPostals = [pastedRow, ...(selectedState.postalCodes || [])];
+
+    const existingCodes = new Set(
+      (selectedState.postalCodes || []).map((p) => String(p.postalCode || "").trim().toLowerCase())
+    );
+
+    const pastedRows = [];
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
+      const rawPostal = postalCodeIdx !== -1 && postalCodeIdx < cells.length ? cells[postalCodeIdx] : (cells[0] || "");
+      const rawCity = cityIdx !== -1 && cityIdx < cells.length ? cells[cityIdx] : (cells[1] || "");
+
+      if (!rawPostal && !rawCity) return;
+
+      let targetCode = rawPostal ? rawPostal.toUpperCase().slice(0, 15) : "";
+      if (rawPostal && existingCodes.has(rawPostal.toLowerCase())) {
+        targetCode = `${rawPostal}-C`;
+      }
+
+      const tempId = `POSTAL_PASTE_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+      pastedRows.push({
+        postalCode: targetCode,
+        city: rawCity,
+        stateCode: selectedState.stateCode || "",
+        countryCode: selectedCountry?.countryCode || "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true
+      });
+    });
+
+    if (pastedRows.length === 0) return toast.warn("No valid postal code rows parsed from clipboard.");
+
+    const updatedPostals = [...pastedRows, ...(selectedState.postalCodes || [])];
     updateSelectedState({ postalCodes: updatedPostals });
-    setSelectedPostal(pastedRow);
-    setSelectedPostalCodes(new Set([tempId]));
+    setSelectedPostal(pastedRows[0]);
+    setSelectedPostalCodes(new Set([pastedRows[0].tempId]));
     setPostalCurrentIndex(0);
-    toast.success("Postal code record pasted successfully.");
+    toast.success(`${pastedRows.length} postal code record(s) pasted successfully.`);
+  };
+
+  const handlePostalPaste = async () => {
+    if (!selectedState) return toast.warn("Select a state first.");
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processPostalPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
+    if (!postalClipboard || postalClipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy a postal code record first.");
+    }
+
+    const pastedRows = postalClipboard.map((target, i) => {
+      const tempId = `POSTAL_PASTE_${Date.now()}_${i}`;
+      return {
+        ...target,
+        postalCode: target.postalCode ? `${target.postalCode}-C` : "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true
+      };
+    });
+
+    const updatedPostals = [...pastedRows, ...(selectedState.postalCodes || [])];
+    updateSelectedState({ postalCodes: updatedPostals });
+    setSelectedPostal(pastedRows[0]);
+    setSelectedPostalCodes(new Set([pastedRows[0].tempId]));
+    setPostalCurrentIndex(0);
+    toast.success(`${pastedRows.length} postal code record(s) pasted successfully.`);
+  };
+
+  const handlePostalFind = () => {
+    if (!postalFindValue.trim()) {
+      setPostalFilteredGroups([]);
+      return toast.info("Postal code search filter cleared.");
+    }
+    const term = postalFindValue.toLowerCase().trim();
+    const matches = (visiblePostalCodes || []).filter((row) => {
+      if (postalSearchColumn === "postalCode") return String(row.postalCode || "").toLowerCase().includes(term);
+      if (postalSearchColumn === "city") return String(row.city || "").toLowerCase().includes(term);
+      return (
+        String(row.postalCode || "").toLowerCase().includes(term) ||
+        String(row.city || "").toLowerCase().includes(term) ||
+        String(row.stateCode || "").toLowerCase().includes(term) ||
+        String(row.countryCode || "").toLowerCase().includes(term)
+      );
+    });
+
+    setPostalFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching postal code records found.");
+    } else {
+      setSelectedPostalCodes(new Set([getPostalKey(matches[0])]));
+      setSelectedPostal(matches[0]);
+      toast.success(`Found ${matches.length} matching postal code record(s).`);
+    }
+  };
+
+  const handlePostalReplaceAll = () => {
+    if (postalSearchColumn === "postalCode") {
+      return toast.warn("Postal Code cannot be modified via Replace.");
+    }
+    if (!postalFindValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = postalFindValue.trim();
+    let replaceCount = 0;
+
+    const targetList = postalFilteredGroups.length > 0 ? postalFilteredGroups : visiblePostalCodes;
+    const targetKeys = new Set(targetList.map((r) => getPostalKey(r)));
+
+    const updatedPostals = (selectedState?.postalCodes || []).map((row) => {
+      if (!targetKeys.has(getPostalKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        postalSearchColumn === "all"
+          ? ["city"]
+          : postalSearchColumn === "postalCode" && row.isNew
+          ? ["postalCode"]
+          : [postalSearchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, postalReplaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      updateSelectedState({ postalCodes: updatedPostals });
+      if (selectedPostal) {
+        const found = updatedPostals.find((r) => getPostalKey(r) === getPostalKey(selectedPostal));
+        if (found) {
+          setSelectedPostal(found);
+          setSelectedPostalCodes(new Set([getPostalKey(found)]));
+        }
+      }
+      if (postalFilteredGroups.length > 0) {
+        setPostalFilteredGroups(postalFilteredGroups.map(fg => updatedPostals.find(u => getPostalKey(u) === getPostalKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handlePostalClearFind = () => {
+    setPostalFindValue("");
+    setPostalReplaceValue("");
+    setPostalFilteredGroups([]);
   };
 
   const handlePostalDelete = async () => {
@@ -1724,7 +2439,7 @@ const ManageCountry = () => {
   };
 
   const handlePostalNavigate = (direction) => {
-    const postals = visiblePostalCodes;
+    const postals = displayPostalCodes;
     if (postals.length === 0) return;
     let nextIdx = postalCurrentIndex;
     if (direction === "start") nextIdx = 0;
@@ -1747,28 +2462,20 @@ const ManageCountry = () => {
     );
   });
 
-  const visibleStates = countries
-    .filter(c => selectedCountryCodes.has(getRowKey(c)))
-    .flatMap(c => c.states || []);
-
-  const visiblePostalCodes = visibleStates
-    .filter(s => selectedStateCodes.has(getStateKey(s)))
-    .flatMap(s => s.postalCodes || []);
-
   return (
     <div className="country-page p-4 space-y-4 font-inter text-[#1f2937]">
       <style>{`
         .country-page { font-size:12px; color:#1f2937; }
-        .country-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .country-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
         .country-page .voucher-head-btn:hover:not(:disabled) { background:#f5f8fb; border-color:#b9c8d8; }
         .country-page .voucher-head-btn:disabled { opacity:0.4; cursor:not-allowed; }
-        .country-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .country-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #1677e8; border-radius:6px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
         .country-page .voucher-primary-btn:hover:not(:disabled) { background:#125bc3; border-color:#125bc3; }
-        .country-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; transition:all 0.15s ease; }
+        .country-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; transition:all 0.15s ease; }
         .country-page .voucher-nav-btn:last-child { border-right:0; }
         .country-page .voucher-nav-btn:hover:not(:disabled) { background:#eaf1f7; color:#17414d; }
         .country-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
-        .country-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
+        .country-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:28px; padding:0 6px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
         .td-input[readonly] {
           background-color: #f8fafc !important; /* bg-slate-50 style */
           color: #94a3b8 !important;            /* text-slate-400 style */
@@ -1819,6 +2526,7 @@ const ManageCountry = () => {
             }
           }}
           currentIndex={currentIndex}
+          onCloseScreen={handleCloseScreen}
         />
 
         {/* Find & Replace Bar (Available in both Form and Table views) */}
@@ -1948,8 +2656,6 @@ const ManageCountry = () => {
                   if (!wasSelected) {
                     handleCountrySelect(item);
                   } else {
-                    // It was unchecked.
-                    // Automatically uncheck all of this country's states and their postal codes
                     const countryStates = item.states || [];
                     setSelectedStateCodes(prev => {
                       const next = new Set(prev);
@@ -1964,8 +2670,6 @@ const ManageCountry = () => {
                       return next;
                     });
 
-                    // If the unchecked country was the active selectedCountry, switch to another checked one if available.
-                    // Do not nullify selectedCountry if no countries are checked so layout is preserved.
                     if (selectedCountry && getRowKey(selectedCountry) === key) {
                       if (newIds.size > 0) {
                         const nextKey = Array.from(newIds)[newIds.size - 1];
@@ -2021,6 +2725,7 @@ const ManageCountry = () => {
 
       {/* LEVEL 2: MANAGE STATE */}
       {selectedCountry && (
+        <div data-section="state">
         <SecondaryContainer
           title="Manage State"
           className="mt-3 shadow-sm bg-white border border-slate-200/80 rounded-xl"
@@ -2028,13 +2733,15 @@ const ManageCountry = () => {
           <CountryToolbar
             isFormView={isStateFormView}
             handleNavigate={handleStateNavigate}
-            totalRecords={selectedCountryCodes.size > 0 ? visibleStates.length : 0}
+            totalRecords={selectedCountryCodes.size > 0 ? displayStates.length : 0}
             selectedRow={selectedCountryCodes.size > 0 ? selectedState : null}
             selectedCount={selectedStateCodes.size}
             searchValue={stateSearchValue}
             setSearchValue={setStateSearchValue}
             loading={loading || selectedCountryCodes.size === 0}
             clipboard={stateClipboard}
+            onToggleFindReplace={() => setShowStateFindReplace((prev) => !prev)}
+            showFindReplace={showStateFindReplace}
             actions={{
               onAdd: handleStateAdd,
               onSave: handleSaveAll,
@@ -2043,7 +2750,7 @@ const ManageCountry = () => {
               onClear: handleDiscard,
               onPaste: handleStatePaste,
               onToggleView: () => {
-                const states = visibleStates;
+                const states = displayStates;
                 if (!isStateFormView && !selectedState && states.length > 0) {
                   const firstRecord = states[0];
                   setSelectedState(firstRecord);
@@ -2056,18 +2763,102 @@ const ManageCountry = () => {
             buttonsDisable={["save"]}
           />
 
+          {/* State Find & Replace Bar */}
+          {showStateFindReplace && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                  <select
+                    value={stateSearchColumn}
+                    onChange={(e) => setStateSearchColumn(e.target.value)}
+                    className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                  >
+                    <option value="all">All Columns</option>
+                    <option value="stateCode">State Code</option>
+                    <option value="state">State</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Find..."
+                    value={stateFindValue}
+                    onChange={(e) => setStateFindValue(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleStateFind()}
+                    className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Replace with..."
+                    value={stateReplaceValue}
+                    disabled={stateSearchColumn === "stateCode"}
+                    onChange={(e) => setStateReplaceValue(e.target.value)}
+                    className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                      stateSearchColumn === "stateCode"
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                        : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                    }`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleStateFind}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+                >
+                  Find / Filter
+                </button>
+
+                <button
+                  type="button"
+                  disabled={stateSearchColumn === "stateCode"}
+                  onClick={handleStateReplaceAll}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                    stateSearchColumn === "stateCode"
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                  }`}
+                >
+                  Replace All
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleStateClearFind}
+                  className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowStateFindReplace(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                title="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <div className="mt-1.5 text-xs">
             {!isStateFormView ? (
               <div className="bg-white border border-gray-200 p-2">
                 <ReusableTable
-                  data={selectedCountryCodes.size > 0 ? visibleStates : []}
+                  data={selectedCountryCodes.size > 0 ? displayStates : []}
                   columns={stateColumns}
-                  selectedRows={visibleStates.filter(s => selectedStateCodes.has(getStateKey(s)))}
+                  selectedRows={displayStates.filter(s => selectedStateCodes.has(getStateKey(s)))}
                   onSelectAll={(e) => {
                     if (e.target.checked) {
-                      setSelectedStateCodes(new Set(visibleStates.map(getStateKey)));
-                      if (visibleStates.length > 0) {
-                        const firstState = visibleStates[0];
+                      setSelectedStateCodes(new Set(displayStates.map(getStateKey)));
+                      if (displayStates.length > 0) {
+                        const firstState = displayStates[0];
                         setSelectedState(firstState);
                         const parentCountryCode = firstState.countryCode || selectedCountry?.countryCode;
                         loadStateDetails(parentCountryCode, firstState);
@@ -2089,10 +2880,9 @@ const ManageCountry = () => {
                     if (!wasSelected) {
                       setSelectedState(item);
                       const parentCountryCode = item.countryCode || selectedCountry?.countryCode;
-                      const idx = (visibleStates || []).findIndex(s => getStateKey(s) === key);
+                      const idx = (displayStates || []).findIndex(s => getStateKey(s) === key);
                       setStateCurrentIndex(idx >= 0 ? idx : 0);
                       
-                      // Load postals if not loaded, otherwise select them
                       if (!item.postalCodes || item.postalCodes.length === 0) {
                         loadStateDetails(parentCountryCode, item);
                       } else {
@@ -2101,24 +2891,20 @@ const ManageCountry = () => {
                         setPostalCurrentIndex(0);
                       }
                     } else {
-                      // It was unchecked.
-                      // Remove its postal codes from selectedPostalCodes
                       setSelectedPostalCodes(prev => {
                         const next = new Set(prev);
                         (item.postalCodes || []).forEach(p => next.delete(getPostalKey(p)));
                         return next;
                       });
                       
-                      // If the unchecked state was the active selectedState, switch to another checked one if available.
-                      // Do not nullify selectedState if no states are checked so layout is preserved.
                       if (selectedState && getStateKey(selectedState) === key) {
                         if (newIds.size > 0) {
                           const nextKey = Array.from(newIds)[newIds.size - 1];
-                          const nextState = visibleStates.find(s => getStateKey(s) === nextKey);
+                          const nextState = displayStates.find(s => getStateKey(s) === nextKey);
                           if (nextState) {
                             setSelectedState(nextState);
                             const parentCountryCode = nextState.countryCode || selectedCountry?.countryCode;
-                            const idx = (visibleStates || []).findIndex(s => getStateKey(s) === nextKey);
+                            const idx = (displayStates || []).findIndex(s => getStateKey(s) === nextKey);
                             setStateCurrentIndex(idx >= 0 ? idx : 0);
                             loadStateDetails(parentCountryCode, nextState);
                           }
@@ -2172,10 +2958,12 @@ const ManageCountry = () => {
             )}
           </div>
         </SecondaryContainer>
+        </div>
       )}
 
       {/* LEVEL 3: POSTAL CODE */}
       {selectedState && (
+        <div data-section="postal">
         <SecondaryContainer
           title="Postal Code"
           className="mt-3 shadow-sm bg-white border border-slate-200/80 rounded-xl"
@@ -2183,13 +2971,15 @@ const ManageCountry = () => {
           <CountryToolbar
             isFormView={isPostalFormView}
             handleNavigate={handlePostalNavigate}
-            totalRecords={selectedStateCodes.size > 0 ? visiblePostalCodes.length : 0}
+            totalRecords={selectedStateCodes.size > 0 ? displayPostalCodes.length : 0}
             selectedRow={selectedStateCodes.size > 0 ? selectedPostal : null}
             selectedCount={selectedPostalCodes.size}
             searchValue={postalSearchValue}
             setSearchValue={setPostalSearchValue}
             loading={loading || selectedStateCodes.size === 0}
             clipboard={postalClipboard}
+            onToggleFindReplace={() => setShowPostalFindReplace((prev) => !prev)}
+            showFindReplace={showPostalFindReplace}
             actions={{
               onAdd: handlePostalAdd,
               onSave: handleSaveAll,
@@ -2198,7 +2988,7 @@ const ManageCountry = () => {
               onClear: handleDiscard,
               onPaste: handlePostalPaste,
               onToggleView: () => {
-                const postals = visiblePostalCodes;
+                const postals = displayPostalCodes;
                 if (!isPostalFormView && !selectedPostal && postals.length > 0) {
                   const firstRecord = postals[0];
                   setSelectedPostal(firstRecord);
@@ -2211,18 +3001,102 @@ const ManageCountry = () => {
             buttonsDisable={["save"]}
           />
 
+          {/* Postal Find & Replace Bar */}
+          {showPostalFindReplace && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                  <select
+                    value={postalSearchColumn}
+                    onChange={(e) => setPostalSearchColumn(e.target.value)}
+                    className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                  >
+                    <option value="all">All Columns</option>
+                    <option value="postalCode">Postal Code</option>
+                    <option value="city">City</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Find..."
+                    value={postalFindValue}
+                    onChange={(e) => setPostalFindValue(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handlePostalFind()}
+                    className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Replace with..."
+                    value={postalReplaceValue}
+                    disabled={postalSearchColumn === "postalCode"}
+                    onChange={(e) => setPostalReplaceValue(e.target.value)}
+                    className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                      postalSearchColumn === "postalCode"
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                        : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                    }`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handlePostalFind}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+                >
+                  Find / Filter
+                </button>
+
+                <button
+                  type="button"
+                  disabled={postalSearchColumn === "postalCode"}
+                  onClick={handlePostalReplaceAll}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                    postalSearchColumn === "postalCode"
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                  }`}
+                >
+                  Replace All
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePostalClearFind}
+                  className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPostalFindReplace(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                title="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <div className="mt-1.5 text-xs">
             {!isPostalFormView ? (
               <div className="bg-white border border-gray-200 p-2">
                 <ReusableTable
-                  data={selectedStateCodes.size > 0 ? visiblePostalCodes : []}
+                  data={selectedStateCodes.size > 0 ? displayPostalCodes : []}
                   columns={postalColumns}
-                  selectedRows={visiblePostalCodes.filter(p => selectedPostalCodes.has(getPostalKey(p)))}
+                  selectedRows={displayPostalCodes.filter(p => selectedPostalCodes.has(getPostalKey(p)))}
                   onSelectAll={(e) => {
                     if (e.target.checked) {
-                      setSelectedPostalCodes(new Set(visiblePostalCodes.map(getPostalKey)));
-                      if (visiblePostalCodes.length > 0) {
-                        setSelectedPostal(visiblePostalCodes[0]);
+                      setSelectedPostalCodes(new Set(displayPostalCodes.map(getPostalKey)));
+                      if (displayPostalCodes.length > 0) {
+                        setSelectedPostal(displayPostalCodes[0]);
                       }
                     } else {
                       setSelectedPostalCodes(new Set());
@@ -2241,16 +3115,16 @@ const ManageCountry = () => {
                     setSelectedPostalCodes(newIds);
                     if (!wasSelected) {
                       setSelectedPostal(item);
-                      const idx = (visiblePostalCodes || []).findIndex(p => getPostalKey(p) === key);
+                      const idx = (displayPostalCodes || []).findIndex(p => getPostalKey(p) === key);
                       setPostalCurrentIndex(idx >= 0 ? idx : 0);
                     } else {
                       if (selectedPostal && getPostalKey(selectedPostal) === key) {
                         if (newIds.size > 0) {
                           const nextKey = Array.from(newIds)[newIds.size - 1];
-                          const nextPostal = visiblePostalCodes.find(p => getPostalKey(p) === nextKey);
+                          const nextPostal = displayPostalCodes.find(p => getPostalKey(p) === nextKey);
                           if (nextPostal) {
                             setSelectedPostal(nextPostal);
-                            const idx = (visiblePostalCodes || []).findIndex(p => getPostalKey(p) === nextKey);
+                            const idx = (displayPostalCodes || []).findIndex(p => getPostalKey(p) === nextKey);
                             setPostalCurrentIndex(idx >= 0 ? idx : 0);
                           } else {
                             setSelectedPostal(null);
@@ -2310,6 +3184,7 @@ const ManageCountry = () => {
             )}
           </div>
         </SecondaryContainer>
+        </div>
       )}
     </div>
   );

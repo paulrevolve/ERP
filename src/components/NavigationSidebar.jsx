@@ -356,19 +356,9 @@ const NavigationSidebar = ({ canView, isSidebarOpen, setIsSidebarOpen }) => {
               ],
             },
             {
-              label: "Taxes & Countries",
-              subItems: [
-                {
-                  label: "Countries",
-                  path: "/dashboard/manage-countries",
-                  permission: "organization",
-                },
-                {
-                  label: "Sales Taxes",
-                  path: "/dashboard/manage-sales-taxes",
-                  permission: "organization",
-                },
-              ],
+              label: "Countries",
+              path: "/dashboard/manage-countries",
+              permission: "organization",
             },
 
             // {
@@ -804,6 +794,11 @@ const NavigationSidebar = ({ canView, isSidebarOpen, setIsSidebarOpen }) => {
               label: "Global Settings",
               path: "/dashboard/global-configuration",
               permission: "globalConfiguration",
+            },
+            {
+              label: "Sales Taxes",
+              path: "/dashboard/manage-sales-taxes",
+              permission: "organization",
             },
           ],
         },

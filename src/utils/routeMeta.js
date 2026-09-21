@@ -26,6 +26,8 @@ export const getRouteMeta = (pathname) => {
     "/dashboard/manage-users": { title: "Manage Users", category: "Manage" },
     "/dashboard/accts-payable/accounts-payable-vouchers": { title: "Accounts Payable Vouchers", category: "Accounts Payable" },
     "/dashboard/accts-payable/approve-vouchers": { title: "Approve Vouchers", category: "Accounts Payable" },
+    "/dashboard/manage-sales-taxes": { title: "Sales Taxes", category: "Admin > Configuration" },
+    "/dashboard/manage-countries": { title: "Countries", category: "Accounting > General Ledger" },
   };
 
   if (routesMap[pathname]) {

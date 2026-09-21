@@ -9112,6 +9112,7 @@
 // export default ManageAccountsPayableVouchers;
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   MoreVertical,
@@ -9159,6 +9160,7 @@ import { ReusableTable } from "../helper/tableSection";
 import api from "../utils/api";
 import { backendUrl } from "./config";
 import { useDraftStore } from "../store/useDraftStore";
+import { useRecentStore } from "../store/useRecentStore";
 
 const PaymentVoucherIcon = () => (
   <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm -mr-2.5 flex items-center justify-center">
@@ -10996,6 +10998,7 @@ const initialMockRecords = [
 ];
 
 const ManageAccountsPayableVouchers = () => {
+  const navigate = useNavigate();
   const [isFormView, setIsFormView] = useState(true);
   const [activeTab, setActiveTab] = useState("Header Info");
   const [searchValue, setSearchValue] = useState("");
@@ -11231,6 +11234,12 @@ const ManageAccountsPayableVouchers = () => {
   const [selectedChildRowState, setSelectedChildRow] = useState(null);
   const [selectedChildIds, setSelectedChildIds] = useState(new Set());
   const [childClipboard, setChildClipboard] = useState([]);
+  const [showChildFindReplace, setShowChildFindReplace] = useState(false);
+  const [childSearchColumn, setChildSearchColumn] = useState("all");
+  const [childFindValue, setChildFindValue] = useState("");
+  const [childReplaceValue, setChildReplaceValue] = useState("");
+  const [childFilteredGroups, setChildFilteredGroups] = useState([]);
+  const [childSearchValue, setChildSearchValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activePopup, setActivePopup] = useState("");
   const [activeNestedTabs, setActiveNestedTabs] = useState({});
@@ -11821,21 +11830,299 @@ const handleVoucherNavigation = (direction) => {
     setSelectedChildIds(new Set([getRowKey(blankDetailLine)]));
   };
 
-  const handleCopy = () => {
-    if (!selectedRow) return toast.warn("Select a record to copy first.");
-    setClipboard([selectedRow]);
-    toast.success("Record copied.");
+  const processPastedText = (text) => {
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = [
+      "voucher",
+      "invoice",
+      "invoicenumber",
+      "vendor",
+      "vendorname",
+      "invoice date",
+      "invoicedate",
+      "invoice amount",
+      "invoiceamount",
+      "due date",
+      "duedate",
+      "due amount",
+      "dueamount",
+      "fiscal year",
+      "fiscalyear",
+      "period",
+    ];
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) =>
+      headerKeys.includes(cell),
+    );
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
+    }
+
+    let voucherIdx = -1;
+    let invoiceIdx = -1;
+    let vendorIdx = -1;
+    let invoiceDateIdx = -1;
+    let invoiceAmtIdx = -1;
+    let dueDateIdx = -1;
+    let dueAmtIdx = -1;
+    let fyIdx = -1;
+    let periodIdx = -1;
+
+    if (isHeaderRow) {
+      voucherIdx = firstLineCells.findIndex((cell) =>
+        ["voucher"].includes(cell),
+      );
+      invoiceIdx = firstLineCells.findIndex((cell) =>
+        ["invoice", "invoicenumber"].includes(cell),
+      );
+      vendorIdx = firstLineCells.findIndex((cell) =>
+        ["vendor", "vendorname"].includes(cell),
+      );
+      invoiceDateIdx = firstLineCells.findIndex((cell) =>
+        ["invoice date", "invoicedate"].includes(cell),
+      );
+      invoiceAmtIdx = firstLineCells.findIndex((cell) =>
+        ["invoice amount", "invoiceamount"].includes(cell),
+      );
+      dueDateIdx = firstLineCells.findIndex((cell) =>
+        ["due date", "duedate"].includes(cell),
+      );
+      dueAmtIdx = firstLineCells.findIndex((cell) =>
+        ["due amount", "dueamount"].includes(cell),
+      );
+      fyIdx = firstLineCells.findIndex((cell) =>
+        ["fiscal year", "fiscalyear"].includes(cell),
+      );
+      periodIdx = firstLineCells.findIndex((cell) =>
+        ["period"].includes(cell),
+      );
+    } else {
+      voucherIdx = 0;
+      invoiceIdx = 1;
+      vendorIdx = 2;
+      invoiceDateIdx = 3;
+      invoiceAmtIdx = 4;
+      dueDateIdx = 5;
+      dueAmtIdx = 6;
+      fyIdx = 7;
+      periodIdx = 8;
+    }
+
+    const pastedRows = [];
+
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t");
+
+      const rawVoucher =
+        voucherIdx !== -1 && voucherIdx < cells.length ? cells[voucherIdx].trim() : "";
+      const rawInvoice =
+        invoiceIdx !== -1 && invoiceIdx < cells.length ? cells[invoiceIdx].trim() : "";
+      const rawVendor =
+        vendorIdx !== -1 && vendorIdx < cells.length ? cells[vendorIdx].trim() : "";
+      const rawInvoiceDate =
+        invoiceDateIdx !== -1 && invoiceDateIdx < cells.length ? cells[invoiceDateIdx].trim() : "";
+      const rawInvoiceAmt =
+        invoiceAmtIdx !== -1 && invoiceAmtIdx < cells.length ? cells[invoiceAmtIdx].trim() : "";
+      const rawDueDate =
+        dueDateIdx !== -1 && dueDateIdx < cells.length ? cells[dueDateIdx].trim() : "";
+      const rawDueAmt =
+        dueAmtIdx !== -1 && dueAmtIdx < cells.length ? cells[dueAmtIdx].trim() : "";
+      const rawFy =
+        fyIdx !== -1 && fyIdx < cells.length ? cells[fyIdx].trim() : defaultFiscalYear;
+      const rawPeriod =
+        periodIdx !== -1 && periodIdx < cells.length ? cells[periodIdx].trim() : defaultPeriod;
+
+      if (!rawVoucher && !rawInvoice && !rawVendor && !rawInvoiceAmt) {
+        return;
+      }
+
+      const tempId = `PASTE_${Date.now()}_${i}`;
+      const blankDetailLine = createBlankDetailLine("1", `CHILD_PASTE_${Date.now()}_${i}`);
+      blankDetailLine.costAmount = rawInvoiceAmt || "0.00";
+      blankDetailLine.totBeforeDisc = rawInvoiceAmt || "0.00";
+      blankDetailLine.totalAmt = rawInvoiceAmt || "0.00";
+
+      const newRecord = {
+        id: tempId,
+        tempId,
+        voucher: rawVoucher ? `${rawVoucher}-COPY` : "",
+        fiscalYear: rawFy || defaultFiscalYear,
+        period: rawPeriod || defaultPeriod,
+        subperiod: defaultSubperiod,
+        companyId: defaultCompanyId,
+        vendor: rawVendor,
+        vendorName: rawVendor,
+        terms: defaultTerms,
+        approved: "N",
+        template: "N",
+        invoiceNumber: rawInvoice,
+        invoiceDate: rawInvoiceDate,
+        invoiceAmount: rawInvoiceAmt || "0.00",
+        dueDate: rawDueDate,
+        dueAmount: rawDueAmt || rawInvoiceAmt || "0.00",
+        discountPercent: "",
+        discountDate: "",
+        discountAmount: "",
+        voucherType: "AP Voucher",
+        originalVoucher: "",
+        accountDescriptionAp: "",
+        accountDescriptionCash: "",
+        voucherLineRecalcMethod: "Recalculate Cost",
+        whenSalesTaxChanged: "Recalculate Tot Before Disc",
+        totalTax: "0.00",
+        remainingBalance: rawInvoiceAmt || "0.00",
+        taxId: "",
+        taxingDate: "",
+        taxLocation: "",
+        retainageRate: "0.00",
+        retainageAmount: "0.00",
+        referencePo: "",
+        referencePoRelease: "0",
+        recurredVoucher: "N",
+        holdVoucher: "N",
+        payWhenPaid: "N",
+        separateCheck: "N",
+        overBudget: "N",
+        anticipatedPayDate: "",
+        expenseReportId: "",
+        cisCode: "",
+        approver: "",
+        entryUser: defaultUserId,
+        entryDate: new Date().toLocaleDateString(),
+        payVendor: "",
+        payVendorName: "",
+        jointPayee: "",
+        addressCode: "",
+        addressLine1: "",
+        addressLine2: "",
+        addressLine3: "",
+        addressCity: "",
+        addressState: "",
+        addressPostalCode: "",
+        addressCountry: "",
+        addressPassword: "",
+        checkCashAcctDesc: "10100 - Cash Operating",
+        checkNumber: "",
+        checkDate: "",
+        checkDiscountTaken: "",
+        checkAmount: "",
+        checkPayTransType: "None",
+        checkPayRefCode: "",
+        checkPostFiscalYear: "",
+        checkPostPeriod: "",
+        checkPostSubperiod: "",
+        recurCode: "",
+        recurStartFiscalYear: "",
+        recurStartPeriod: "",
+        recurStartSubperiod: "",
+        recurStartEndingDate: "",
+        recurEndFiscalYear: "",
+        recurEndPeriod: "",
+        recurEndSubperiod: "",
+        recurEndEndingDate: "",
+        recurLastVchrFiscalYear: "",
+        recurLastVchrPeriod: "",
+        recurLastVchrSubperiod: "",
+        subcontractorInvoicePopDate: "",
+        subcontractorDeliveryValue: "",
+        subcontractorInvoiceType: "None",
+        notesPrintOnCheck: "N",
+        notesText: "",
+        notesDocLocation: "",
+        defaultAllowPayVendorWarning: "N",
+        defaultAddDiscDiffFirstLine: "Y",
+        defaultUseAccountDesc: "N",
+        defaultUseOwningOrg: "Y",
+        defaultAllowDuplicateInvNum: "N",
+        defaultSaveTeVoucher: "N",
+        detailLines: [blankDetailLine],
+        isDirty: true,
+      };
+
+      pastedRows.push(updateHeaderBalances(newRecord));
+    });
+
+    if (pastedRows.length === 0) {
+      return toast.warn("No valid rows parsed from clipboard.");
+    }
+
+    setRecords((prev) => [...pastedRows, ...prev]);
+    selectRecord(pastedRows[0]);
+    toast.success(`${pastedRows.length} record(s) pasted successfully.`);
   };
 
-  const handlePaste = () => {
-    if (clipboard.length === 0) return toast.warn("Nothing to paste.");
+  const handleCopy = async () => {
+    const rowsToCopy = isFormView
+      ? (selectedRow ? [selectedRow] : [])
+      : (selectedIds.size > 0
+          ? records.filter((c) => selectedIds.has(getRowKey(c)))
+          : (selectedRow ? [selectedRow] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one record to copy.");
+    }
+
+    setClipboard([...rowsToCopy]);
+
+    // Format TSV for Excel copy
+    const header = "Voucher\tInvoice\tVendor\tInvoice Date\tInvoice Amount\tDue Date\tDue Amount\tFiscal Year\tPeriod";
+    const tsvLines = rowsToCopy.map((r) => {
+      const vchr = r.voucher ?? "";
+      const inv = r.invoiceNumber ?? "";
+      const ven = r.vendor ? `${r.vendor} - ${r.vendorName || ""}` : (r.vendorName || "");
+      const invDate = r.invoiceDate ?? "";
+      const invAmt = r.invoiceAmount ?? "";
+      const dueDate = r.dueDate ?? "";
+      const dueAmt = r.dueAmount ?? "";
+      const fy = r.fiscalYear ?? "";
+      const per = r.period ?? "";
+      return `${vchr}\t${inv}\t${ven}\t${invDate}\t${invAmt}\t${dueDate}\t${dueAmt}\t${fy}\t${per}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} record(s) copied to clipboard`);
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
+    if (!clipboard || clipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy a record first.");
+    }
+
     const pasted = clipboard.map((item, idx) => {
       const tempId = `PASTE_${Date.now()}_${idx}`;
       const record = {
         ...item,
         id: tempId,
         tempId,
-        voucher: `${item.voucher}-COPY`,
+        voucher: item.voucher ? `${item.voucher}-COPY` : "",
         isDirty: true,
         detailLines: (item.detailLines || []).map((d, dIdx) => ({
           ...d,
@@ -11844,11 +12131,52 @@ const handleVoucherNavigation = (direction) => {
       };
       return updateHeaderBalances(record);
     });
-    setRecords([...pasted, ...records]);
-    setSelectedRow(pasted[0]);
-    setSelectedIds(new Set([pasted[0].id]));
-    toast.success("Record pasted successfully.");
+
+    setRecords((prev) => [...pasted, ...prev]);
+    selectRecord(pasted[0]);
+    toast.success(`${pasted.length} record(s) pasted successfully.`);
   };
+
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text || !text.trim()) return;
+
+          const isInput =
+            e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+          const hasStructure = text.includes("\t") || text.includes("\n");
+
+          if (isInput && !hasStructure) {
+            return;
+          }
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          const lowerText = text.toLowerCase();
+          const targetInChild = e.target.closest && (e.target.closest('[data-section="detail-lines"]') || e.target.closest('.subtab-container'));
+
+          if (
+            targetInChild ||
+            (selectedRow && (lowerText.includes("cost amount") || lowerText.includes("taxability") || lowerText.includes("tax/vat") || lowerText.includes("recovery rate") || lowerText.includes("1099")))
+          ) {
+            if (selectedRow) {
+              return processChildPastedText(text);
+            }
+          }
+
+          processPastedText(text);
+        } catch (err) {
+          console.error("Ctrl+V readText error:", err);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [records, clipboard, selectedRow, childClipboard, activeChildTab]);
 
   const handleDelete = async () => {
     if (selectedIds.size === 0 && !selectedRow) {
@@ -12220,18 +12548,279 @@ const handleVoucherNavigation = (direction) => {
     setSelectedChildRow(newChild);
   };
 
-  const handleChildCopy = () => {
-    if (!selectedChildRow)
-      return toast.warn("Select a voucher line to copy first.");
-    setChildClipboard([selectedChildRow]);
-    toast.success("Voucher line copied.");
+  const handleChildCopy = async () => {
+    if (!selectedRow) return;
+    const lines = selectedRow.detailLines || [];
+    const rowsToCopy = isChildFormView
+      ? (selectedChildRow ? [selectedChildRow] : [])
+      : (selectedChildIds.size > 0
+          ? lines.filter((c) => selectedChildIds.has(getRowKey(c)))
+          : (selectedChildRow ? [selectedChildRow] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one voucher line to copy.");
+    }
+
+    setChildClipboard([...rowsToCopy]);
+
+    const header = [
+      "Line",
+      "Account",
+      "Organization",
+      "Project",
+      "Cost Amount",
+      "Percent",
+      "Taxability",
+      "Tax/VAT Code",
+      "Tax Rate",
+      "Sales/VAT Tax Amt",
+      "Tot Before Disc",
+      "Discount",
+      "Total Amount",
+      "Use/Reverse Tax Amt",
+      "Recovery Rate",
+      "Recovery Amt",
+      "1099",
+      "1099 Type",
+      "1099 State",
+      "Description",
+      "Notes"
+    ].join("\t");
+
+    const tsvLines = rowsToCopy.map((r) => {
+      const lineNo = r.lineNo ?? "";
+      const acc = r.account ?? "";
+      const org = r.organization ?? "";
+      const prj = r.project ?? "";
+      const cost = r.costAmount ?? "";
+      const pct = r.percent ?? "";
+      const taxability = r.taxability ?? "";
+      const taxVat = r.taxVatCode ?? "";
+      const taxRate = r.taxRate ?? "";
+      const salesTax = r.salesVatTaxAmt ?? "";
+      const totBefDisc = r.totBeforeDisc ?? "";
+      const disc = r.discount ?? "";
+      const totAmt = r.totalAmt ?? "";
+      const useTax = r.useReverseTaxAmt ?? "";
+      const recRate = r.recoveryRate ?? "";
+      const recAmt = r.recoveryAmt ?? "";
+      const v1099 = r.vendor1099 ?? "N";
+      const t1099 = r.type1099 ?? "";
+      const s1099 = r.state1099 ?? "";
+      const desc = r.description ?? "";
+      const notes = r.notes ?? "";
+      return `${lineNo}\t${acc}\t${org}\t${prj}\t${cost}\t${pct}\t${taxability}\t${taxVat}\t${taxRate}\t${salesTax}\t${totBefDisc}\t${disc}\t${totAmt}\t${useTax}\t${recRate}\t${recAmt}\t${v1099}\t${t1099}\t${s1099}\t${desc}\t${notes}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} voucher line(s) copied to clipboard`);
   };
 
-  const handleChildPaste = () => {
+  const processChildPastedText = (text) => {
     if (!selectedRow) return;
-    if (isApprovedLocked(selectedRow))
+    if (isApprovedLocked(selectedRow)) {
       return toast.warn("Approved vouchers cannot be edited.");
-    if (childClipboard.length === 0) return toast.warn("Nothing to paste.");
+    }
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = [
+      "line", "line no", "lineno",
+      "account", "account name", "acct",
+      "organization", "organization name", "org",
+      "project", "project name", "proj",
+      "cost amount", "cost", "cost amt",
+      "percent", "%",
+      "taxability", "taxable",
+      "tax/vat code", "tax vat code", "tax code", "taxcode", "vat code",
+      "tax rate", "taxrate",
+      "sales/vat tax amt", "sales tax", "tax amount",
+      "tot before disc", "total before discount",
+      "discount", "discount amt",
+      "total amount", "total amt", "net amount",
+      "use/reverse tax amt", "use tax",
+      "recovery rate", "recovery amt",
+      "1099", "1099 type", "1099 state",
+      "description", "notes"
+    ];
+
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) =>
+      headerKeys.some((k) => cell === k || cell.includes(k))
+    );
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
+    }
+
+    let accIdx = -1, orgIdx = -1, prjIdx = -1, costIdx = -1, pctIdx = -1;
+    let taxabilityIdx = -1, taxVatIdx = -1, taxRateIdx = -1, salesTaxIdx = -1;
+    let discIdx = -1, totAmtIdx = -1, useTaxIdx = -1, recRateIdx = -1, recAmtIdx = -1;
+    let descIdx = -1, notesIdx = -1, v1099Idx = -1, t1099Idx = -1, s1099Idx = -1;
+
+    if (isHeaderRow) {
+      firstLineCells.forEach((c, idx) => {
+        if (c.includes("1099") && c.includes("type")) t1099Idx = idx;
+        else if (c.includes("1099") && c.includes("state")) s1099Idx = idx;
+        else if (c.includes("1099")) v1099Idx = idx;
+        else if (c.includes("use") || c.includes("reverse")) useTaxIdx = idx;
+        else if (c.includes("recovery") && c.includes("rate")) recRateIdx = idx;
+        else if (c.includes("recovery") && c.includes("amt")) recAmtIdx = idx;
+        else if (c.includes("sales") || c.includes("vat tax")) salesTaxIdx = idx;
+        else if (c.includes("tax rate") || c.includes("taxrate")) taxRateIdx = idx;
+        else if (c.includes("tax") && (c.includes("code") || c.includes("vat"))) taxVatIdx = idx;
+        else if (c.includes("taxability") || c.includes("taxable")) taxabilityIdx = idx;
+        else if (c.includes("disc")) discIdx = idx;
+        else if (c.includes("total amt") || c.includes("total amount")) totAmtIdx = idx;
+        else if (c.includes("cost")) costIdx = idx;
+        else if (c.includes("percent") || c === "%") pctIdx = idx;
+        else if (c.includes("proj")) prjIdx = idx;
+        else if (c.includes("org")) orgIdx = idx;
+        else if (c.includes("acc") || c.includes("acct")) accIdx = idx;
+        else if (c.includes("desc")) descIdx = idx;
+        else if (c.includes("note")) notesIdx = idx;
+      });
+    } else {
+      accIdx = 1;
+      orgIdx = 2;
+      prjIdx = 3;
+      costIdx = 4;
+      pctIdx = 5;
+      taxabilityIdx = 6;
+      taxVatIdx = 7;
+      taxRateIdx = 8;
+      salesTaxIdx = 9;
+      discIdx = 11;
+      totAmtIdx = 12;
+      useTaxIdx = 13;
+      recRateIdx = 14;
+      recAmtIdx = 15;
+      v1099Idx = 16;
+      t1099Idx = 17;
+      s1099Idx = 18;
+      descIdx = 19;
+      notesIdx = 20;
+    }
+
+    const parentId = getRowKey(selectedRow);
+    const existingLines = selectedRow.detailLines || [];
+    const pastedLines = [];
+
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t").map((c) => c.replace(/^"|"$/g, "").trim());
+
+      const rawAcc = accIdx !== -1 && accIdx < cells.length ? cells[accIdx] : (cells[0] || "");
+      const rawOrg = orgIdx !== -1 && orgIdx < cells.length ? cells[orgIdx] : "";
+      const rawPrj = prjIdx !== -1 && prjIdx < cells.length ? cells[prjIdx] : "";
+      const rawCost = costIdx !== -1 && costIdx < cells.length ? cells[costIdx] : "";
+      const rawPct = pctIdx !== -1 && pctIdx < cells.length ? cells[pctIdx] : "";
+      const rawTaxability = taxabilityIdx !== -1 && taxabilityIdx < cells.length ? cells[taxabilityIdx] : "";
+      const rawTaxVat = taxVatIdx !== -1 && taxVatIdx < cells.length ? cells[taxVatIdx] : "";
+      const rawTaxRate = taxRateIdx !== -1 && taxRateIdx < cells.length ? cells[taxRateIdx] : "";
+      const rawSalesTax = salesTaxIdx !== -1 && salesTaxIdx < cells.length ? cells[salesTaxIdx] : "";
+      const rawDisc = discIdx !== -1 && discIdx < cells.length ? cells[discIdx] : "";
+      const rawTotAmt = totAmtIdx !== -1 && totAmtIdx < cells.length ? cells[totAmtIdx] : "";
+      const rawUseTax = useTaxIdx !== -1 && useTaxIdx < cells.length ? cells[useTaxIdx] : "";
+      const rawRecRate = recRateIdx !== -1 && recRateIdx < cells.length ? cells[recRateIdx] : "";
+      const rawRecAmt = recAmtIdx !== -1 && recAmtIdx < cells.length ? cells[recAmtIdx] : "";
+      const rawDesc = descIdx !== -1 && descIdx < cells.length ? cells[descIdx] : "";
+      const rawNotes = notesIdx !== -1 && notesIdx < cells.length ? cells[notesIdx] : "";
+      const rawV1099 = v1099Idx !== -1 && v1099Idx < cells.length ? cells[v1099Idx] : "N";
+      const rawT1099 = t1099Idx !== -1 && t1099Idx < cells.length ? cells[t1099Idx] : "";
+      const rawS1099 = s1099Idx !== -1 && s1099Idx < cells.length ? cells[s1099Idx] : "";
+
+      if (!rawAcc && !rawOrg && !rawCost && !rawDesc) return;
+
+      const tempId = `CHILD_PASTE_${Date.now()}_${i}`;
+      const lineNo = String(existingLines.length + pastedLines.length + 1);
+      const newLine = createBlankDetailLine(lineNo, tempId);
+
+      newLine.account = rawAcc;
+      newLine.accountName = rawAcc.includes(" - ") ? rawAcc.split(" - ")[1] : rawAcc;
+      newLine.organization = rawOrg;
+      newLine.organizationName = rawOrg.includes(" - ") ? rawOrg.split(" - ")[1] : rawOrg;
+      newLine.project = rawPrj;
+      newLine.projectName = rawPrj.includes(" - ") ? rawPrj.split(" - ")[1] : rawPrj;
+      newLine.costAmount = rawCost || "0.00";
+      newLine.percent = rawPct || "";
+      newLine.taxability = rawTaxability || "";
+      newLine.taxVatCode = rawTaxVat || "";
+      newLine.taxRate = rawTaxRate || "0.00";
+      newLine.salesVatTaxAmt = rawSalesTax || "0.00";
+      newLine.totBeforeDisc = rawCost || "0.00";
+      newLine.discount = rawDisc || "0.00";
+      newLine.totalAmt = rawTotAmt || rawCost || "0.00";
+      newLine.useReverseTaxAmt = rawUseTax || "0.00";
+      newLine.recoveryRate = rawRecRate || "100.00";
+      newLine.recoveryAmt = rawRecAmt || "0.00";
+      newLine.vendor1099 = rawV1099 || "N";
+      newLine.type1099 = rawT1099 || "";
+      newLine.state1099 = rawS1099 || "";
+      newLine.description = rawDesc || "";
+      newLine.notes = rawNotes || rawDesc || "";
+      newLine.isDirty = true;
+
+      Object.assign(newLine, calculateRowUpdates(newLine));
+      pastedLines.push(newLine);
+    });
+
+    if (pastedLines.length === 0) {
+      return toast.warn("No valid voucher lines parsed from clipboard.");
+    }
+
+    const updatedChildren = [...existingLines, ...pastedLines];
+    const sumTax = updatedChildren.reduce((sum, line) => sum + toNumber(line.salesVatTaxAmt), 0);
+
+    setRecords((prev) =>
+      prev.map((r) => {
+        if (getRowKey(r) === parentId) {
+          return updateHeaderBalances({ ...r, detailLines: updatedChildren, totalTax: sumTax.toFixed(2), isDirty: true });
+        }
+        return r;
+      }),
+    );
+
+    setSelectedRow((prev) => {
+      if (!prev || getRowKey(prev) !== parentId) return prev;
+      return updateHeaderBalances({ ...prev, detailLines: updatedChildren, totalTax: sumTax.toFixed(2), isDirty: true });
+    });
+
+    setSelectedChildIds(new Set([pastedLines[0].id]));
+    setSelectedChildRow(pastedLines[0]);
+    toast.success(`${pastedLines.length} voucher line(s) pasted successfully.`);
+  };
+
+  const handleChildPaste = async () => {
+    if (!selectedRow) return;
+    if (isApprovedLocked(selectedRow)) {
+      return toast.warn("Approved vouchers cannot be edited.");
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processChildPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal childClipboard", err);
+    }
+
+    if (childClipboard.length === 0) return toast.warn("Nothing to paste. Copy a line first.");
     const parentId = getRowKey(selectedRow);
     const pasted = childClipboard.map((c, i) => {
       const tempId = `CHILD_PASTE_${Date.now()}_${i}`;
@@ -12245,14 +12834,13 @@ const handleVoucherNavigation = (direction) => {
       };
     });
 
+    const updatedChildren = [...(selectedRow.detailLines || []), ...pasted];
+    const sumTax = updatedChildren.reduce((sum, line) => sum + toNumber(line.salesVatTaxAmt), 0);
+
     setRecords((prev) =>
       prev.map((r) => {
         if (getRowKey(r) === parentId) {
-          return {
-            ...r,
-            detailLines: [...(r.detailLines || []), ...pasted],
-            isDirty: true,
-          };
+          return updateHeaderBalances({ ...r, detailLines: updatedChildren, totalTax: sumTax.toFixed(2), isDirty: true });
         }
         return r;
       }),
@@ -12260,16 +12848,124 @@ const handleVoucherNavigation = (direction) => {
 
     setSelectedRow((prev) => {
       if (!prev || getRowKey(prev) !== parentId) return prev;
-      return {
-        ...prev,
-        detailLines: [...(prev.detailLines || []), ...pasted],
-        isDirty: true,
-      };
+      return updateHeaderBalances({ ...prev, detailLines: updatedChildren, totalTax: sumTax.toFixed(2), isDirty: true });
     });
 
     setSelectedChildIds(new Set([pasted[0].id]));
     setSelectedChildRow(pasted[0]);
-    toast.success("Voucher line pasted.");
+    toast.success(`${pasted.length} voucher line(s) pasted.`);
+  };
+
+  // Find & Replace Handlers for Detail Lines
+  const handleChildFind = () => {
+    if (!selectedRow) return;
+    const lines = selectedRow.detailLines || [];
+    if (!childFindValue.trim()) {
+      setChildFilteredGroups([]);
+      return toast.info("Search filter cleared.");
+    }
+    const term = childFindValue.toLowerCase().trim();
+    const matches = lines.filter((row) => {
+      if (childSearchColumn !== "all") {
+        return String(row[childSearchColumn] ?? "").toLowerCase().includes(term);
+      }
+      return dynamicChildColumns.some((col) => {
+        const val = row[col.key || col.id];
+        return val !== undefined && val !== null && String(val).toLowerCase().includes(term);
+      });
+    });
+
+    setChildFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching detail lines found.");
+    } else {
+      setSelectedChildIds(new Set([getRowKey(matches[0])]));
+      setSelectedChildRow(matches[0]);
+      toast.success(`Found ${matches.length} matching detail line(s).`);
+    }
+  };
+
+  const handleChildReplaceAll = () => {
+    if (!selectedRow) return;
+    if (childSearchColumn === "lineNo") {
+      return toast.warn("Line Number cannot be modified via Replace.");
+    }
+    if (!childFindValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = childFindValue.trim();
+    let replaceCount = 0;
+
+    const currentLines = selectedRow.detailLines || [];
+    const targetList = childFilteredGroups.length > 0 ? childFilteredGroups : currentLines;
+    const targetKeys = new Set(targetList.map((r) => getRowKey(r)));
+
+    const updatedLines = currentLines.map((row) => {
+      if (!targetKeys.has(getRowKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        childSearchColumn === "all"
+          ? dynamicChildColumns
+              .filter((c) => c.key !== "lineNo" && c.type !== "checkbox" && !c.readOnly)
+              .map((c) => c.key || c.id)
+          : [childSearchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (colKey === "lineNo") return;
+        if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, childReplaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      const parentId = getRowKey(selectedRow);
+      setRecords((prev) =>
+        prev.map((r) => {
+          if (getRowKey(r) === parentId) {
+            const sumTax = updatedLines.reduce((sum, line) => sum + toNumber(line.salesVatTaxAmt), 0);
+            return updateHeaderBalances({ ...r, detailLines: updatedLines, totalTax: sumTax.toFixed(2), isDirty: true });
+          }
+          return r;
+        }),
+      );
+      setSelectedRow((prev) => {
+        if (!prev || getRowKey(prev) !== parentId) return prev;
+        const sumTax = updatedLines.reduce((sum, line) => sum + toNumber(line.salesVatTaxAmt), 0);
+        return updateHeaderBalances({ ...prev, detailLines: updatedLines, totalTax: sumTax.toFixed(2), isDirty: true });
+      });
+      if (selectedChildRow) {
+        const found = updatedLines.find((r) => getRowKey(r) === getRowKey(selectedChildRow));
+        if (found) {
+          setSelectedChildRow(found);
+          setSelectedChildIds(new Set([getRowKey(found)]));
+        }
+      }
+      if (childFilteredGroups.length > 0) {
+        setChildFilteredGroups(childFilteredGroups.map((fg) => updatedLines.find((u) => getRowKey(u) === getRowKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleChildClearFind = () => {
+    setChildFindValue("");
+    setChildReplaceValue("");
+    setChildFilteredGroups([]);
   };
 
   const handleChildDelete = () => {
@@ -12477,7 +13173,16 @@ const handleVoucherNavigation = (direction) => {
           String(r.voucher || "").toLowerCase().includes(term) ||
           String(r.invoiceNumber || "").toLowerCase().includes(term) ||
           String(r.vendor || "").toLowerCase().includes(term) ||
-          String(r.vendorName || "").toLowerCase().includes(term)
+          String(r.vendorName || "").toLowerCase().includes(term) ||
+          String(r.invoiceDate || "").toLowerCase().includes(term) ||
+          String(r.invoiceAmount || "").toLowerCase().includes(term) ||
+          String(r.dueDate || "").toLowerCase().includes(term) ||
+          String(r.dueAmount || "").toLowerCase().includes(term) ||
+          String(r.fiscalYear || "").toLowerCase().includes(term) ||
+          String(r.period || "").toLowerCase().includes(term) ||
+          String(r.subperiod || "").toLowerCase().includes(term) ||
+          String(r.approved || "").toLowerCase().includes(term) ||
+          String(r.terms || "").toLowerCase().includes(term)
         );
       }) : records
     );
@@ -12509,6 +13214,18 @@ const handleVoucherNavigation = (direction) => {
     });
   }, [records, filteredGroups, searchValue, sortColumn, sortDirection]);
 
+  // Global search sync with active record in Form View
+  useEffect(() => {
+    if (searchValue && displayRecords.length > 0) {
+      const isCurrentInDisplay = displayRecords.some(
+        (r) => getRowKey(r) === getRowKey(selectedRow),
+      );
+      if (!isCurrentInDisplay) {
+        selectRecord(displayRecords[0]);
+      }
+    }
+  }, [searchValue, displayRecords]);
+
   // --- Draft Store Hydration on Mount ---
   useEffect(() => {
     const draft = useDraftStore.getState().getDraft("manage-ap-vouchers");
@@ -12525,7 +13242,11 @@ const handleVoucherNavigation = (direction) => {
       setRecords(draft.records);
       if (draft.selectedRow) setSelectedRow(draft.selectedRow);
       if (draft.selectedIds) setSelectedIds(new Set(draft.selectedIds));
+      if (draft.selectedChildRow) setSelectedChildRow(draft.selectedChildRow);
+      if (draft.selectedChildIds) setSelectedChildIds(new Set(draft.selectedChildIds));
       if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+      if (typeof draft.isChildFormView === "boolean") setIsChildFormView(draft.isChildFormView);
+      if (draft.activeChildTab) setActiveChildTab(draft.activeChildTab);
     } else {
       loadVouchers();
     }
@@ -12535,13 +13256,21 @@ const handleVoucherNavigation = (direction) => {
   const recordsRef = useRef(records);
   const selectedRowRef = useRef(selectedRow);
   const selectedIdsRef = useRef(selectedIds);
+  const selectedChildRowRef = useRef(selectedChildRow);
+  const selectedChildIdsRef = useRef(selectedChildIds);
   const isFormViewRef = useRef(isFormView);
+  const isChildFormViewRef = useRef(isChildFormView);
+  const activeChildTabRef = useRef(activeChildTab);
 
   useEffect(() => {
     recordsRef.current = records;
     selectedRowRef.current = selectedRow;
     selectedIdsRef.current = selectedIds;
+    selectedChildRowRef.current = selectedChildRow;
+    selectedChildIdsRef.current = selectedChildIds;
     isFormViewRef.current = isFormView;
+    isChildFormViewRef.current = isChildFormView;
+    activeChildTabRef.current = activeChildTab;
 
     const hasDirty = records.some(
       (r) =>
@@ -12555,12 +13284,16 @@ const handleVoucherNavigation = (direction) => {
         records,
         selectedRow,
         selectedIds: Array.from(selectedIds),
+        selectedChildRow,
+        selectedChildIds: Array.from(selectedChildIds),
         isFormView,
+        isChildFormView,
+        activeChildTab,
         isDirty: true,
         hasUnsaved: true,
       });
     }
-  }, [records, selectedRow, selectedIds, isFormView]);
+  }, [records, selectedRow, selectedIds, selectedChildRow, selectedChildIds, isFormView, isChildFormView, activeChildTab]);
 
   useEffect(() => {
     return () => {
@@ -12579,7 +13312,11 @@ const handleVoucherNavigation = (direction) => {
           records: cur,
           selectedRow: selectedRowRef.current,
           selectedIds: Array.from(selectedIdsRef.current),
+          selectedChildRow: selectedChildRowRef.current,
+          selectedChildIds: Array.from(selectedChildIdsRef.current),
           isFormView: isFormViewRef.current,
+          isChildFormView: isChildFormViewRef.current,
+          activeChildTab: activeChildTabRef.current,
           isDirty: true,
           hasUnsaved: true,
         });
@@ -12591,6 +13328,39 @@ const handleVoucherNavigation = (direction) => {
     (r) => r.isDirty || (r.detailLines || []).some((d) => d.isDirty),
   );
   const activeRecordId = selectedRow ? getRowKey(selectedRow) : "";
+
+  const displayChildLines = useMemo(() => {
+    const lines = selectedRow?.detailLines || [];
+    const base = childFilteredGroups.length > 0 ? childFilteredGroups : (
+      childSearchValue.trim() ? lines.filter((line) => {
+        const term = childSearchValue.toLowerCase().trim();
+        return (
+          String(line.lineNo || "").toLowerCase().includes(term) ||
+          String(line.account || "").toLowerCase().includes(term) ||
+          String(line.organization || "").toLowerCase().includes(term) ||
+          String(line.project || "").toLowerCase().includes(term) ||
+          String(line.costAmount || "").toLowerCase().includes(term) ||
+          String(line.taxVatCode || "").toLowerCase().includes(term) ||
+          String(line.description || "").toLowerCase().includes(term) ||
+          String(line.notes || "").toLowerCase().includes(term)
+        );
+      }) : lines
+    );
+    return base;
+  }, [selectedRow, childFilteredGroups, childSearchValue]);
+
+  useEffect(() => {
+    if (childSearchValue && displayChildLines.length > 0) {
+      const isCurrentInDisplay = displayChildLines.some(
+        (r) => getRowKey(r) === getRowKey(selectedChildRow),
+      );
+      if (!isCurrentInDisplay) {
+        setSelectedChildRow(displayChildLines[0]);
+        setSelectedChildIds(new Set([getRowKey(displayChildLines[0])]));
+      }
+    }
+  }, [childSearchValue, displayChildLines]);
+
   const dynamicChildColumns = childColumns.map((column) => {
     if (column.key === "taxability") {
       return {
@@ -13922,11 +14692,11 @@ const handleVoucherNavigation = (direction) => {
       <style>
         {`
         .payment-voucher-page { font-size:12px; color:#1f2937; }
-        .payment-voucher-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; }
+        .payment-voucher-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
         .payment-voucher-page .voucher-head-btn:hover, .payment-voucher-page .voucher-icon-btn:hover, .payment-voucher-page .voucher-outline-btn:hover { background:#f5f8fb; border-color:#b9c8d8; }
-        .payment-voucher-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; }
-        .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; }
-        .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#52657c; }
+        .payment-voucher-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #1677e8; border-radius:6px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-outline-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; }
+        .payment-voucher-page .voucher-icon-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#52657c; cursor:pointer; }
         .payment-voucher-page .voucher-tabs { display:flex; align-items:flex-end; gap:0; border-bottom:1px solid #dbe3eb; min-height:40px; }
         .payment-voucher-page .voucher-tab { position:relative; padding:0 17px 11px; height:40px; border:0; background:transparent; color:#63758b; font-size:12px; font-weight:500; white-space:nowrap; }
         .payment-voucher-page .voucher-tab:hover { color:#1677e8; }
@@ -14067,8 +14837,8 @@ const handleVoucherNavigation = (direction) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border: 0;
   border-right: 1px solid #d5dfeb;
   background: #f5f8fb;
@@ -14094,9 +14864,9 @@ const handleVoucherNavigation = (direction) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
-  height: 30px;
-  padding: 0 8px;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 6px;
   background: #fff;
   color: #17414d;
   font-size: 11px;
@@ -14115,98 +14885,109 @@ const handleVoucherNavigation = (direction) => {
             <span>›</span>
             <span className="truncate">A/P Voucher</span>
           </div>
-          {/* <div className="hidden h-8 w-[270px] items-center gap-2 rounded-md border border-[#e0e6ee] bg-white px-3 md:flex">
-            <Search size={14} className="text-[#8795a8]" />
-            <span className="text-[11px] text-[#98a2b3]">Search or type a command</span>
-            <span className="ml-auto text-[10px] text-[#a1acba]">⌘ K</span>
-          </div> */}
-          {/* <div className="flex items-center gap-3 text-[#52627a]">
-            <span className="text-[11px] hidden sm:inline">Help</span><span className="voucher-chevron">⌄</span>
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e8eef7] text-[10px] font-semibold text-[#405673]">SD</div>
-          </div> */}
         </div>
       </div>
 
       {/* NEW UI PAGE HEADER */}
       <div className="border-b border-[#dbe3eb] bg-white ml-[15px]">
         <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-[18px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h1 className="text-[17px] font-semibold tracking-[-0.2px] text-[#172b4d] whitespace-nowrap">
               A/P Voucher
             </h1>
-            {/* <span className="rounded-full bg-[#e8f0fe] px-2.5 py-1 text-[10px] font-medium text-[#1677e8]">New </span> */}
             <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
+              {/* First Voucher */}
+              <button
+                type="button"
+                className="voucher-nav-btn"
+                title="First voucher"
+                onClick={() => handleVoucherNavigation("start")}
+              >
+                <ChevronsLeft size={15} strokeWidth={1.5} />
+              </button>
 
-  {/* First Voucher */}
-  <button
-    type="button"
-    className="voucher-nav-btn"
-    title="First voucher"
-    onClick={() => handleVoucherNavigation("start")}
-  >
-    <ChevronsLeft size={16} strokeWidth={1.5} />
-  </button>
+              {/* Previous Voucher */}
+              <button
+                type="button"
+                className="voucher-nav-btn"
+                title="Previous voucher"
+                onClick={() => handleVoucherNavigation("prev")}
+              >
+                <ChevronLeft size={15} strokeWidth={1.5} />
+              </button>
 
-  {/* Previous Voucher */}
-  <button
-    type="button"
-    className="voucher-nav-btn"
-    title="Previous voucher"
-    onClick={() => handleVoucherNavigation("prev")}
-  >
-    <ChevronLeft size={16} strokeWidth={1.5} />
-  </button>
+              {/* Count */}
+              <span className="voucher-count">
+                {selectedRow
+                  ? displayRecords.findIndex(
+                      (record) => getRowKey(record) === getRowKey(selectedRow)
+                    ) + 1
+                  : 0}{" "}
+                / {displayRecords.length}
+              </span>
 
-  {/* Count */}
-  <span className="voucher-count">
-    {selectedRow
-      ? displayRecords.findIndex(
-          (record) => getRowKey(record) === getRowKey(selectedRow)
-        ) + 1
-      : 0}{" "}
-    / {displayRecords.length}
-  </span>
+              {/* Next Voucher */}
+              <button
+                type="button"
+                className="voucher-nav-btn"
+                title="Next voucher"
+                onClick={() => handleVoucherNavigation("next")}
+              >
+                <ChevronRight size={15} strokeWidth={1.5} />
+              </button>
 
-  {/* Next Voucher */}
-  <button
-    type="button"
-    className="voucher-nav-btn"
-    title="Next voucher"
-    onClick={() => handleVoucherNavigation("next")}
-  >
-    <ChevronRight size={16} strokeWidth={1.5} />
-  </button>
+              {/* Last Voucher */}
+              <button
+                type="button"
+                className="voucher-nav-btn"
+                title="Last voucher"
+                onClick={() => handleVoucherNavigation("end")}
+              >
+                <ChevronsRight size={15} strokeWidth={1.5} />
+              </button>
+            </div>
 
-  {/* Last Voucher */}
-  <button
-    type="button"
-    className="voucher-nav-btn"
-    title="Last voucher"
-    onClick={() => handleVoucherNavigation("end")}
-  >
-    <ChevronsRight size={16} strokeWidth={1.5} />
-  </button>
-
-</div>
-            {/* <span className="text-[12px] text-[#7b8da5]">{selectedRow?.voucher ? `AP-${selectedRow.voucher}` : "AP-000125"}</span> */}
+            {/* Quick Search on Toolbar */}
+            <div className="relative flex items-center ml-1">
+              <Search
+                size={13}
+                className="absolute left-2 text-slate-400 pointer-events-none"
+              />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                className="h-7 w-36 pl-7 pr-6 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
+              />
+              {searchValue && (
+                <button
+                  type="button"
+                  onClick={() => setSearchValue("")}
+                  className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* <button type="button" className="voucher-head-btn">View <span className="voucher-chevron">⌄</span></button> */}
+
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleAdd}
               className="voucher-primary-btn"
             >
-              <Plus size={14} /> Create{" "}
-              <span className="voucher-chevron"></span>
+              <Plus size={13} /> Create
             </button>
-            {/* <button type="button" className="voucher-head-btn">Actions <span className="voucher-chevron">⌄</span></button> */}
+
             <button
               type="button"
               className="voucher-head-btn"
               onClick={handleCopy}
             >
-              <Copy size={14} />
+              <Copy size={13} />
               Copy
             </button>
 
@@ -14215,7 +14996,7 @@ const handleVoucherNavigation = (direction) => {
               className="voucher-head-btn"
               onClick={handlePaste}
             >
-              <ClipboardPaste size={14} />
+              <ClipboardPaste size={13} />
               Paste
             </button>
 
@@ -14224,7 +15005,7 @@ const handleVoucherNavigation = (direction) => {
               onClick={handleDelete}
               className="voucher-head-btn"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               Delete
             </button>
 
@@ -14234,26 +15015,51 @@ const handleVoucherNavigation = (direction) => {
               className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
               title="Find & Replace"
             >
-              <Replace size={14} /> Find/Replace
+              <Replace size={13} /> Find/Replace
             </button>
 
             <button
               type="button"
               onClick={handleDiscard}
               className="voucher-head-btn"
+              title="Reset unsaved changes"
             >
-              Cancel
+              Reset
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              className="voucher-head-btn text-[#1677e8] border-[#1677e8]/40 hover:bg-[#1677e8]/5"
+            >
+              <Save size={13} />
+              Save
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                useDraftStore.getState().clearDraft("manage-ap-vouchers");
+                useRecentStore.getState().removeRecentPage?.("/dashboard/accts-payable/accounts-payable-vouchers");
+                useRecentStore.getState().removeRecentPage?.("/dashboard/manage-accounts-payable-vouchers");
+                navigate("/dashboard");
+              }}
+              className="voucher-head-btn text-slate-600 hover:text-slate-800"
+              title="Close screen"
+            >
+              <X size={13} />
+              Close
             </button>
 
             <button
               type="button"
               onClick={() => setIsFormView(!isFormView)}
               disabled={isLoading}
-              className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50"
+              className="relative flex h-[28px] w-[74px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[2px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
             >
               <span
-                className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
-                  isFormView ? "left-[3px]" : "left-[41px]"
+                className={`absolute top-[2px] h-[22px] w-[34px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                  isFormView ? "left-[2px]" : "left-[36px]"
                 }`}
               />
 
@@ -14273,7 +15079,6 @@ const handleVoucherNavigation = (direction) => {
                 Table
               </span>
             </button>
-            {/* <button type="button" onClick={handleDiscard} className="voucher-head-btn">Cancel</button> */}
           </div>
         </div>
       </div>
@@ -15583,6 +16388,10 @@ const handleVoucherNavigation = (direction) => {
               <Toolbar
                 isFormView={isChildFormView}
                 columns={dynamicChildColumns}
+                searchValue={childSearchValue}
+                setSearchValue={setChildSearchValue}
+                showFindReplace={showChildFindReplace}
+                onToggleFindReplace={() => setShowChildFindReplace(!showChildFindReplace)}
                 actions={{
                   onAdd: handleChildAdd,
                   onCopy: handleChildCopy,
@@ -15591,14 +16400,13 @@ const handleVoucherNavigation = (direction) => {
                   onDelete: handleChildDelete,
                   onSave: handleSave,
                   onToggleView: () => {
-                    const lines = selectedRow?.detailLines || [];
                     if (
                       !isChildFormView &&
                       !selectedChildRow &&
-                      lines.length > 0
+                      displayChildLines.length > 0
                     ) {
-                      setSelectedChildRow(lines[0]);
-                      setSelectedChildIds(new Set([getRowKey(lines[0])]));
+                      setSelectedChildRow(displayChildLines[0]);
+                      setSelectedChildIds(new Set([getRowKey(displayChildLines[0])]));
                     }
                     setIsChildFormView(!isChildFormView);
                   },
@@ -15610,24 +16418,23 @@ const handleVoucherNavigation = (direction) => {
                 )}
                 clipboardCount={childClipboard.length}
                 clipboard={childClipboard}
-                currentIndex={(selectedRow?.detailLines || []).findIndex(
+                currentIndex={displayChildLines.findIndex(
                   (d) => getRowKey(d) === getRowKey(selectedChildRow),
                 )}
-                totalRecords={(selectedRow?.detailLines || []).length}
+                totalRecords={displayChildLines.length}
                 handleNavigate={(dir) => {
-                  const lines = selectedRow?.detailLines || [];
-                  const idx = lines.findIndex(
+                  const idx = displayChildLines.findIndex(
                     (d) => getRowKey(d) === getRowKey(selectedChildRow),
                   );
                   let targetChild = null;
-                  if (dir === "start" && lines.length > 0)
-                    targetChild = lines[0];
+                  if (dir === "start" && displayChildLines.length > 0)
+                    targetChild = displayChildLines[0];
                   else if (dir === "prev" && idx > 0)
-                    targetChild = lines[idx - 1];
-                  else if (dir === "next" && idx < lines.length - 1)
-                    targetChild = lines[idx + 1];
-                  else if (dir === "end" && lines.length > 0)
-                    targetChild = lines[lines.length - 1];
+                    targetChild = displayChildLines[idx - 1];
+                  else if (dir === "next" && idx < displayChildLines.length - 1)
+                    targetChild = displayChildLines[idx + 1];
+                  else if (dir === "end" && displayChildLines.length > 0)
+                    targetChild = displayChildLines[displayChildLines.length - 1];
                   if (targetChild) {
                     setSelectedChildRow(targetChild);
                     setSelectedChildIds(new Set([getRowKey(targetChild)]));
@@ -15635,18 +16442,105 @@ const handleVoucherNavigation = (direction) => {
                 }}
               />
 
+              {/* Child Detail Find & Replace Bar */}
+              {showChildFindReplace && (
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                      <select
+                        value={childSearchColumn}
+                        onChange={(e) => setChildSearchColumn(e.target.value)}
+                        className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                      >
+                        <option value="all">All Columns</option>
+                        {dynamicChildColumns.map((col) => (
+                          <option key={col.key || col.id} value={col.key || col.id}>
+                            {col.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        placeholder="Find..."
+                        value={childFindValue}
+                        onChange={(e) => setChildFindValue(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleChildFind()}
+                        className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        placeholder="Replace with..."
+                        value={childReplaceValue}
+                        disabled={childSearchColumn === "lineNo"}
+                        onChange={(e) => setChildReplaceValue(e.target.value)}
+                        className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                          childSearchColumn === "lineNo"
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                            : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                        }`}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleChildFind}
+                      className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+                    >
+                      Find / Filter
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={childSearchColumn === "lineNo"}
+                      onClick={handleChildReplaceAll}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                        childSearchColumn === "lineNo"
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                      }`}
+                    >
+                      Replace All
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleChildClearFind}
+                      className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+                    >
+                      Reset
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowChildFindReplace(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    title="Close"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               <div className="mt-2 text-xs">
                 {!isChildFormView ? (
                   <div className="bg-white border border-gray-200 p-2">
                     <ReusableTable
-                      data={selectedRow?.detailLines || []}
+                      data={displayChildLines}
                       columns={dynamicChildColumns}
                       selectedRows={selectedChildIds}
                       onSelectAll={(e) => {
                         if (e.target.checked) {
                           setSelectedChildIds(
                             new Set(
-                              (selectedRow.detailLines || []).map(getRowKey),
+                              displayChildLines.map(getRowKey),
                             ),
                           );
                         } else {

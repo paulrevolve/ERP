@@ -19,6 +19,7 @@ import ReusableTable from "../helper/tableSection";
 import { Plus } from "lucide-react";
 import { ActionButton } from "../helper/container"; // Adjust path based on
 import Pagination from "../helper/pagination";
+import { useDraftStore } from "../store/useDraftStore";
 
 const OrgMaster = ({ canEdit }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -89,6 +90,88 @@ const OrgMaster = ({ canEdit }) => {
 
   useEffect(() => {
     refrence();
+  }, []);
+
+  // --- 4 PHASE DRAFT STATE PERSISTENCE ---
+  // Phase 1: Hydrate Draft on Mount
+  useEffect(() => {
+    const draft = useDraftStore.getState().getDraft("org-master");
+    if (
+      draft &&
+      Array.isArray(draft.data) &&
+      draft.data.length > 0 &&
+      (draft.isDirty ||
+        draft.hasUnsaved ||
+        draft.data.some((r) => r.isDirty || r.tempId || r.isNew))
+    ) {
+      setData(draft.data);
+      if (draft.activeGroupRow) setActiveGroupRow(draft.activeGroupRow);
+      if (draft.selectedRows) setSelectedRows(new Set(draft.selectedRows));
+      if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
+      if (draft.currentIndex !== undefined) setCurrentIndex(draft.currentIndex);
+    }
+  }, []);
+
+  // Phase 2: Auto-save Draft on Changes
+  const dataRef = useRef(data);
+  const activeGroupRowRef = useRef(activeGroupRow);
+  const selectedRowsRef = useRef(selectedRows);
+  const isFormViewRef = useRef(isFormView);
+  const currentIndexRef = useRef(currentIndex);
+
+  useEffect(() => {
+    dataRef.current = data;
+    activeGroupRowRef.current = activeGroupRow;
+    selectedRowsRef.current = selectedRows;
+    isFormViewRef.current = isFormView;
+    currentIndexRef.current = currentIndex;
+
+    const hasDirty =
+      data.some((r) => r.isDirty || r.tempId || r.isNew) ||
+      isFormDirty ||
+      isTableDirty;
+    if (hasDirty) {
+      useDraftStore.getState().saveDraft("org-master", {
+        data,
+        activeGroupRow,
+        selectedRows: Array.from(selectedRows),
+        isFormView,
+        currentIndex,
+        isDirty: true,
+        hasUnsaved: true,
+      });
+    }
+  }, [
+    data,
+    activeGroupRow,
+    selectedRows,
+    isFormView,
+    currentIndex,
+    isFormDirty,
+    isTableDirty,
+  ]);
+
+  // Phase 3: Cleanup / Unmount save
+  useEffect(() => {
+    return () => {
+      const cur = dataRef.current;
+      if (
+        cur &&
+        (cur.some((r) => r.isDirty || r.tempId || r.isNew) ||
+          isFormDirty ||
+          isTableDirty)
+      ) {
+        useDraftStore.getState().saveDraft("org-master", {
+          data: cur,
+          activeGroupRow: activeGroupRowRef.current,
+          selectedRows: Array.from(selectedRowsRef.current),
+          isFormView: isFormViewRef.current,
+          currentIndex: currentIndexRef.current,
+          isDirty: true,
+          hasUnsaved: true,
+        });
+      }
+    };
   }, []);
 
   // Combined loading state for disabling buttons
@@ -1391,6 +1474,9 @@ const OrgMaster = ({ canEdit }) => {
       setIsFormDirty(false);
       setIsTableDirty(false);
 
+      // Phase 4: Clear draft on discard
+      useDraftStore.getState().clearDraft("org-master");
+
       // Clear Clipboard Navigator
       setClipboard(null);
       localStorage.removeItem("org_clipboard");
@@ -1531,6 +1617,7 @@ const OrgMaster = ({ canEdit }) => {
 
       setIsFormDirty(false);
       setIsTableDirty(false);
+      useDraftStore.getState().clearDraft("org-master");
       handleSearch();
 
       return res?.data;

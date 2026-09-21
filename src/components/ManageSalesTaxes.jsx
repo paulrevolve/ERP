@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { backendUrl } from "./config";
 import api from "../utils/api";
 import axios from "axios";
@@ -27,6 +28,7 @@ import {
 import { MainContainer, SecondaryContainer } from "../helper/container";
 import { ReusableTable } from "../helper/tableSection";
 import { useDraftStore } from "../store/useDraftStore";
+import { useRecentStore } from "../store/useRecentStore";
 
 const ManageSalesTaxIcon = () => (
   <div className="p-1 bg-[#f0f4f9] border border-[#d5dfeb] rounded-md shadow-2xs -mr-2 flex items-center justify-center">
@@ -50,46 +52,19 @@ const SalesTaxToolbar = ({
   selectedCount = 0,
   onToggleFindReplace,
   showFindReplace = false,
+  onCloseScreen,
 }) => {
   const { onAdd, onCopy, onPaste, onClear, onDelete, onSave, onToggleView } = actions;
   const hasSelection = isFormView ? (!!selectedRow && totalRecords > 0) : (selectedCount > 0);
   const isCopyDisabled = loading || !hasSelection;
   const isDeleteDisabled = loading || !hasSelection;
-  const isPasteDisabled = loading || !clipboard || clipboard.length === 0;
+  const isPasteDisabled = loading;
 
   return (
-    <div className="flex items-center justify-between gap-2 pb-2 px-2 flex-wrap">
-      {/* LEFT SECTION: Search & Navigation */}
-      <div className="flex items-center gap-3">
-        {setSearchValue && (
-          <div className="relative group">
-            <Search
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-[#1677e8] transition-colors"
-              size={14}
-              onClick={() => {
-                if (searchValue && jumpToCode) {
-                  jumpToCode(searchValue);
-                  setSearchValue("");
-                }
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="pl-8 pr-2.5 h-8 w-40 text-[11px] bg-[#f6f6f6] border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:bg-white focus:border-[#1677e8] transition-all"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && jumpToCode) {
-                  jumpToCode(searchValue);
-                  setSearchValue("");
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {isFormView && handleNavigate && (
+    <div className="flex items-center justify-between gap-3 pl-4 pr-3 py-2 flex-wrap">
+      {/* LEFT SECTION: Navigation & Search */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        {handleNavigate && (
           <div className="flex items-center rounded-md border border-[#d5dfeb] bg-[#f5f8fb] overflow-hidden">
             {/* First */}
             <button
@@ -99,7 +74,7 @@ const SalesTaxToolbar = ({
               disabled={currentIndex <= 0 || loading}
               onClick={() => handleNavigate("start")}
             >
-              <ChevronsLeft size={16} strokeWidth={1.5} />
+              <ChevronsLeft size={15} strokeWidth={1.5} />
             </button>
 
             {/* Previous */}
@@ -110,12 +85,12 @@ const SalesTaxToolbar = ({
               disabled={currentIndex <= 0 || loading}
               onClick={() => handleNavigate("prev")}
             >
-              <ChevronLeft size={16} strokeWidth={1.5} />
+              <ChevronLeft size={15} strokeWidth={1.5} />
             </button>
 
             {/* Count */}
             <span className="voucher-count">
-              {totalRecords > 0 ? currentIndex + 1 : 0} / {totalRecords}
+              {totalRecords > 0 ? (currentIndex >= 0 ? currentIndex + 1 : 1) : 0} / {totalRecords}
             </span>
 
             {/* Next */}
@@ -126,7 +101,7 @@ const SalesTaxToolbar = ({
               disabled={currentIndex >= totalRecords - 1 || loading}
               onClick={() => handleNavigate("next")}
             >
-              <ChevronRight size={16} strokeWidth={1.5} />
+              <ChevronRight size={15} strokeWidth={1.5} />
             </button>
 
             {/* Last */}
@@ -137,14 +112,45 @@ const SalesTaxToolbar = ({
               disabled={currentIndex >= totalRecords - 1 || loading}
               onClick={() => handleNavigate("end")}
             >
-              <ChevronsRight size={16} strokeWidth={1.5} />
+              <ChevronsRight size={15} strokeWidth={1.5} />
             </button>
+          </div>
+        )}
+
+        {setSearchValue && (
+          <div className="relative flex items-center ml-1">
+            <Search
+              size={13}
+              className="absolute left-2 text-slate-400 pointer-events-none"
+            />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="h-7 w-36 pl-7 pr-6 text-[11px] bg-[#f6f6f6] hover:bg-slate-100/80 focus:bg-white border border-[#d5dfeb] rounded-md outline-none text-[#3c4043] placeholder:text-gray-400 focus:border-[#1677e8] transition-all"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && jumpToCode) {
+                  jumpToCode(searchValue);
+                }
+              }}
+            />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => setSearchValue("")}
+                className="absolute right-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* RIGHT SECTION: Action Buttons */}
-      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
         {!buttonsDisable.includes("add") && onAdd && (
           <button
             type="button"
@@ -152,7 +158,7 @@ const SalesTaxToolbar = ({
             disabled={loading}
             className="voucher-primary-btn"
           >
-            <Plus size={14} /> Create
+            <Plus size={13} /> Create
           </button>
         )}
 
@@ -163,7 +169,7 @@ const SalesTaxToolbar = ({
             disabled={isCopyDisabled}
             className="voucher-head-btn"
           >
-            <Copy size={14} /> Copy
+            <Copy size={13} /> Copy
           </button>
         )}
 
@@ -174,7 +180,7 @@ const SalesTaxToolbar = ({
             disabled={isPasteDisabled}
             className="voucher-head-btn"
           >
-            <ClipboardPaste size={14} /> Paste
+            <ClipboardPaste size={13} /> Paste
           </button>
         )}
 
@@ -185,7 +191,7 @@ const SalesTaxToolbar = ({
             disabled={isDeleteDisabled}
             className="voucher-head-btn"
           >
-            <Trash2 size={14} /> Delete
+            <Trash2 size={13} /> Delete
           </button>
         )}
 
@@ -196,7 +202,7 @@ const SalesTaxToolbar = ({
             className={`voucher-head-btn ${showFindReplace ? "bg-slate-100 border-[#1677e8] text-[#1677e8]" : ""}`}
             title="Find & Replace"
           >
-            <Replace size={14} /> Find/Replace
+            <Replace size={13} /> Find/Replace
           </button>
         )}
 
@@ -206,8 +212,9 @@ const SalesTaxToolbar = ({
             onClick={onClear}
             disabled={loading}
             className="voucher-head-btn"
+            title="Reset unsaved changes"
           >
-            Cancel
+            Reset
           </button>
         )}
 
@@ -216,9 +223,20 @@ const SalesTaxToolbar = ({
             type="button"
             onClick={onSave}
             disabled={loading}
-            className="voucher-head-btn"
+            className="voucher-head-btn text-[#1677e8] border-[#1677e8]/40 hover:bg-[#1677e8]/5"
           >
-            <Save size={14} /> Save
+            <Save size={13} /> Save
+          </button>
+        )}
+
+        {onCloseScreen && (
+          <button
+            type="button"
+            onClick={onCloseScreen}
+            className="voucher-head-btn text-slate-600 hover:text-slate-800"
+            title="Close screen"
+          >
+            <X size={13} /> Close
           </button>
         )}
 
@@ -227,11 +245,11 @@ const SalesTaxToolbar = ({
             type="button"
             onClick={onToggleView}
             disabled={loading}
-            className="relative flex h-[30px] w-[82px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[3px] transition-all duration-200 disabled:opacity-50"
+            className="relative flex h-[28px] w-[74px] items-center rounded-full border border-[#d5dfeb] bg-[#f5f8fb] p-[2px] transition-all duration-200 disabled:opacity-50 cursor-pointer"
           >
             <span
-              className={`absolute top-[3px] h-[24px] w-[38px] rounded-full bg-white shadow-sm transition-all duration-200 ${
-                isFormView ? "left-[3px]" : "left-[41px]"
+              className={`absolute top-[2px] h-[22px] w-[34px] rounded-full bg-white shadow-sm transition-all duration-200 ${
+                isFormView ? "left-[2px]" : "left-[36px]"
               }`}
             />
             <span
@@ -595,6 +613,14 @@ export const ManageSalesTaxes = () => {
     );
   };
 
+  const navigate = useNavigate();
+  const handleCloseScreen = () => {
+    useDraftStore.getState().clearDraft("manage-sales-taxes");
+    useRecentStore.getState().removeRecentPage?.("/dashboard/sales-taxes");
+    useRecentStore.getState().removeRecentPage?.("/dashboard/manage-sales-taxes");
+    navigate("/dashboard");
+  };
+
   // Level 2 Accounts Variables
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedAccountKeys, setSelectedAccountKeys] = useState(new Set());
@@ -603,6 +629,13 @@ export const ManageSalesTaxes = () => {
   const [accountCurrentIndex, setAccountCurrentIndex] = useState(0);
   const [accountClipboard, setAccountClipboard] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState("Sales Tax Account"); // "Sales Tax Account" | "Recoverable Accounts"
+
+  // Level 2 Accounts Find & Replace State
+  const [showAccountFindReplace, setShowAccountFindReplace] = useState(false);
+  const [accountSearchColumn, setAccountSearchColumn] = useState("all");
+  const [accountFindValue, setAccountFindValue] = useState("");
+  const [accountReplaceValue, setAccountReplaceValue] = useState("");
+  const [accountFilteredGroups, setAccountFilteredGroups] = useState([]);
 
   const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
   const companyId = user.companyId || "1";
@@ -1328,41 +1361,338 @@ export const ManageSalesTaxes = () => {
     }
   };
 
-  const handleCopy = () => {
-    if (!selectedTax) return toast.warn("Select a record to copy first.");
-    setClipboard([selectedTax]);
-    toast.success("Record copied.");
-  };
+  const processPastedText = (text) => {
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
+    }
 
-  const handlePaste = () => {
-    if (clipboard.length === 0) return toast.warn("Nothing to paste.");
-    const target = clipboard[0];
-    const newId = `TEMP_${Date.now()}`;
-    const pastedRow = {
-      ...target,
-      taxCode: `${target.taxCode}-C`,
-      tempId: newId,
-      uniqueKey: newId,
-      isNew: true,
-      isDirty: true,
-      accounts: (target.accounts || []).map((a, idx) => ({
-        ...a,
-        tempId: `ACC_${Date.now()}_${idx}`,
-        uniqueKey: `ACC_${Date.now()}_${idx}`,
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = [
+      "tax code", "taxcode", "code", "tax", "tax_code",
+      "description", "desc", "tax description", "tax_desc",
+      "state", "state/province", "stateprovince", "state/prov", "state / province", "state code", "statecode",
+      "state name", "statename",
+      "country", "country code", "countrycode",
+      "country name", "countryname",
+      "requires vat/customs info", "requires vat", "requiresvatinfo", "vat info", "vat",
+      "composite tax rate", "tax rate", "taxrate", "composite rate", "rate", "composite_tax_rate",
+      "recovery percent", "recovery %", "recoverypercent",
+      "recovery percent override", "recovery % override", "recoverypercentoverride",
+      "exempt", "exempt from tax", "is_exempt",
+      "certificate no", "certificateno", "certificate", "cert no"
+    ];
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) =>
+      headerKeys.some(k => cell === k || cell.includes(k))
+    );
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
+    }
+
+    let codeIdx = -1;
+    let descIdx = -1;
+    let stateIdx = -1;
+    let stateNameIdx = -1;
+    let countryIdx = -1;
+    let countryNameIdx = -1;
+    let reqVatIdx = -1;
+    let rateIdx = -1;
+    let recPctIdx = -1;
+    let recPctOvrIdx = -1;
+    let exemptIdx = -1;
+    let certIdx = -1;
+
+    if (isHeaderRow) {
+      codeIdx = firstLineCells.findIndex((cell) =>
+        ["tax code", "taxcode", "code", "tax", "tax_code"].some(k => cell === k || cell.includes(k))
+      );
+      descIdx = firstLineCells.findIndex((cell) =>
+        ["description", "desc", "tax description", "tax_desc"].some(k => cell === k || cell.includes(k))
+      );
+      stateIdx = firstLineCells.findIndex((cell) =>
+        ["state/province", "stateprovince", "state/prov", "state / province", "state code", "statecode", "state"].some(k => cell === k || cell.includes(k)) && !cell.includes("name")
+      );
+      stateNameIdx = firstLineCells.findIndex((cell) =>
+        ["state name", "statename"].some(k => cell === k || cell.includes(k))
+      );
+      countryIdx = firstLineCells.findIndex((cell) =>
+        ["country code", "countrycode", "country"].some(k => cell === k || cell.includes(k)) && !cell.includes("name")
+      );
+      countryNameIdx = firstLineCells.findIndex((cell) =>
+        ["country name", "countryname"].some(k => cell === k || cell.includes(k))
+      );
+      reqVatIdx = firstLineCells.findIndex((cell) =>
+        ["requires vat/customs info", "requires vat", "requiresvatinfo", "vat info", "vat"].some(k => cell === k || cell.includes(k))
+      );
+      rateIdx = firstLineCells.findIndex((cell) =>
+        ["composite tax rate", "tax rate", "taxrate", "composite rate", "rate", "composite_tax_rate"].some(k => cell === k || cell.includes(k))
+      );
+      recPctIdx = firstLineCells.findIndex((cell) =>
+        ["recovery percent", "recovery %", "recoverypercent"].some(k => cell === k || cell.includes(k)) && !cell.includes("override")
+      );
+      recPctOvrIdx = firstLineCells.findIndex((cell) =>
+        ["recovery percent override", "recovery % override", "recoverypercentoverride", "override"].some(k => cell === k || cell.includes(k))
+      );
+      exemptIdx = firstLineCells.findIndex((cell) =>
+        ["exempt", "exempt from tax", "is_exempt"].some(k => cell === k || cell.includes(k))
+      );
+      certIdx = firstLineCells.findIndex((cell) =>
+        ["certificate no", "certificateno", "certificate", "cert no"].some(k => cell === k || cell.includes(k))
+      );
+    } else {
+      codeIdx = 0;
+      descIdx = 1;
+      stateIdx = 2;
+      stateNameIdx = 3;
+      countryIdx = 4;
+      countryNameIdx = 5;
+      reqVatIdx = 6;
+      rateIdx = 7;
+      recPctIdx = 8;
+      recPctOvrIdx = 9;
+      exemptIdx = 10;
+      certIdx = 11;
+    }
+
+    const existingCodes = new Set(
+      salesTaxes
+        .filter((r) => !r.tempId && r.taxCode)
+        .map((r) => String(r.taxCode).trim().toLowerCase()),
+    );
+
+    const isTruthy = (v) => ["true", "y", "yes", "1", "t"].includes(String(v || "").toLowerCase().trim());
+
+    const pastedRows = [];
+
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t").map(c => c.replace(/^"|"$/g, "").trim());
+
+      const rawCode = codeIdx !== -1 && codeIdx < cells.length ? cells[codeIdx] : (cells[0] || "");
+      const rawDesc = descIdx !== -1 && descIdx < cells.length ? cells[descIdx] : (cells[1] || "");
+      const rawState = stateIdx !== -1 && stateIdx < cells.length ? cells[stateIdx] : (cells[2] || "");
+      const rawStateName = stateNameIdx !== -1 && stateNameIdx < cells.length ? cells[stateNameIdx] : (cells[3] || "");
+      const rawCountry = countryIdx !== -1 && countryIdx < cells.length ? cells[countryIdx] : (cells[4] || "");
+      const rawCountryName = countryNameIdx !== -1 && countryNameIdx < cells.length ? cells[countryNameIdx] : (cells[5] || "");
+      const rawReqVat = reqVatIdx !== -1 && reqVatIdx < cells.length ? cells[reqVatIdx] : (cells[6] || "N");
+      const rawRate = rateIdx !== -1 && rateIdx < cells.length ? cells[rateIdx] : (cells[7] || "0.00");
+      const rawRecPct = recPctIdx !== -1 && recPctIdx < cells.length ? cells[recPctIdx] : (cells[8] || "100.00");
+      const rawRecPctOvr = recPctOvrIdx !== -1 && recPctOvrIdx < cells.length ? cells[recPctOvrIdx] : (cells[9] || "0.00");
+      const rawExempt = exemptIdx !== -1 && exemptIdx < cells.length ? cells[exemptIdx] : (cells[10] || "N");
+      const rawCert = certIdx !== -1 && certIdx < cells.length ? cells[certIdx] : (cells[11] || "");
+
+      if (!rawCode && !rawDesc) {
+        return;
+      }
+
+      const tempIdVal = `TEMP_PASTE_${Date.now()}_${i}_${Math.random()
+        .toString(36)
+        .substr(2, 5)}`;
+      const accTempId = `ACC_PASTE_${Date.now()}_${i}`;
+
+      let targetCode = rawCode ? rawCode.toUpperCase().slice(0, 6) : "";
+      if (rawCode && existingCodes.has(rawCode.toLowerCase())) {
+        targetCode = `${rawCode.slice(0, 4)}-C`;
+      }
+
+      const matchedState = statesMaster.find(
+        (s) => String(s.stateCode || "").toLowerCase() === rawState.toLowerCase()
+      );
+      const stateProvince = matchedState ? matchedState.stateCode : rawState;
+      const stateName = rawStateName || (matchedState ? matchedState.stateName || "" : "");
+      const country = rawCountry || (matchedState ? (matchedState.countryCode || "USA") : "USA");
+      const countryName = rawCountryName || (matchedState ? resolveCountryName(matchedState) : (country === "IND" ? "India" : country === "USA" ? "United States" : country));
+
+      const newAcc = {
+        ...initialAccountState,
+        tempId: accTempId,
+        uniqueKey: accTempId,
+        taxRate: rawRate || "0.00",
         isNew: true,
-        isDirty: true
-      }))
-    };
-    setSalesTaxes([pastedRow, ...salesTaxes]);
-    setSelectedTax(pastedRow);
-    setSelectedTaxCodes(new Set([newId]));
-    setCurrentIndex(0);
+        isDirty: true,
+      };
 
-    // Reset sub-components
-    setSelectedAccount(pastedRow.accounts[0] || null);
-    setSelectedAccountKeys(pastedRow.accounts[0] ? new Set([pastedRow.accounts[0].uniqueKey]) : new Set());
-    toast.success("Record pasted successfully.");
+      pastedRows.push({
+        ...initialTaxState,
+        taxCode: targetCode,
+        description: rawDesc || (targetCode ? `Tax ${targetCode}` : ""),
+        stateProvince,
+        stateName,
+        country,
+        countryName,
+        requiresVatInfo: isTruthy(rawReqVat),
+        compositeTaxRate: rawRate || "0.00",
+        recoveryPercent: rawRecPct || "100.00",
+        recoveryPercentOverride: rawRecPctOvr || "0.00",
+        exempt: isTruthy(rawExempt),
+        certificateNo: rawCert || "",
+        tempId: tempIdVal,
+        uniqueKey: tempIdVal,
+        isNew: true,
+        isDirty: true,
+        accounts: [newAcc],
+      });
+    });
+
+    if (pastedRows.length === 0) {
+      return toast.warn("No valid rows parsed from clipboard.");
+    }
+
+    setSalesTaxes((prev) => [...pastedRows, ...prev]);
+    setSelectedTax(pastedRows[0]);
+    setSelectedTaxCodes(new Set([pastedRows[0].uniqueKey]));
+    setSelectedAccount(pastedRows[0].accounts?.[0] || null);
+    setSelectedAccountKeys(pastedRows[0].accounts?.[0] ? new Set([pastedRows[0].accounts[0].uniqueKey]) : new Set());
+    setCurrentIndex(0);
+    toast.success(`${pastedRows.length} record(s) pasted successfully.`);
   };
+
+  const handleCopy = async () => {
+    const rowsToCopy = isFormView
+      ? (selectedTax ? [selectedTax] : [])
+      : (selectedTaxCodes.size > 0
+          ? salesTaxes.filter((c) => selectedTaxCodes.has(getTaxKey(c)))
+          : (selectedTax ? [selectedTax] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one record to copy.");
+    }
+
+    setClipboard([...rowsToCopy]);
+
+    // Format TSV for Excel copy - include all 12 columns
+    const header = [
+      "Tax Code",
+      "Description",
+      "State/Province",
+      "State Name",
+      "Country",
+      "Country Name",
+      "Requires VAT/Customs Info",
+      "Composite Tax Rate",
+      "Recovery Percent",
+      "Recovery Percent Override",
+      "Exempt",
+      "Certificate No"
+    ].join("\t");
+
+    const tsvLines = rowsToCopy.map((r) => {
+      const code = r.taxCode ?? "";
+      const desc = r.description ?? "";
+      const st = r.stateProvince ?? "";
+      const stName = r.stateName ?? "";
+      const ct = r.country ?? "";
+      const ctName = r.countryName ?? "";
+      const reqVat = r.requiresVatInfo ? "Y" : "N";
+      const rate = r.compositeTaxRate ?? "";
+      const recPct = r.recoveryPercent ?? "";
+      const recPctOvr = r.recoveryPercentOverride ?? "";
+      const ex = r.exempt ? "Y" : "N";
+      const cert = r.certificateNo ?? "";
+      return `${code}\t${desc}\t${st}\t${stName}\t${ct}\t${ctName}\t${reqVat}\t${rate}\t${recPct}\t${recPctOvr}\t${ex}\t${cert}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} record(s) copied to clipboard`);
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal clipboard", err);
+    }
+
+    if (!clipboard || clipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy a record first.");
+    }
+
+    const pasted = clipboard.map((target, idx) => {
+      const tempId = `TEMP_PASTE_${Date.now()}_${idx}`;
+      return {
+        ...target,
+        taxCode: target.taxCode ? `${target.taxCode}-C` : "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true,
+        accounts: (target.accounts || []).map((a, aIdx) => ({
+          ...a,
+          tempId: `ACC_PASTE_${Date.now()}_${idx}_${aIdx}`,
+          uniqueKey: `ACC_PASTE_${Date.now()}_${idx}_${aIdx}`,
+          isNew: true,
+          isDirty: true,
+        })),
+      };
+    });
+
+    setSalesTaxes((prev) => [...pasted, ...prev]);
+    setSelectedTax(pasted[0]);
+    setSelectedTaxCodes(new Set([pasted[0].uniqueKey]));
+    setSelectedAccount(pasted[0].accounts[0] || null);
+    setSelectedAccountKeys(pasted[0].accounts[0] ? new Set([pasted[0].accounts[0].uniqueKey]) : new Set());
+    setCurrentIndex(0);
+    toast.success(`${pasted.length} record(s) pasted successfully.`);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text || !text.trim()) return;
+
+          const isInput =
+            e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+          const hasStructure = text.includes("\t") || text.includes("\n");
+
+          if (isInput && !hasStructure) {
+            return;
+          }
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          const lowerText = text.toLowerCase();
+          const targetInAccount = e.target.closest && (e.target.closest('[data-section="accounts"]') || e.target.closest('.subtab-container'));
+
+          if (
+            targetInAccount ||
+            activeSubTab === "Sales Tax Accounts" ||
+            (selectedTax && (lowerText.includes("tax rate") || lowerText.includes("recoverable") || lowerText.includes("suspense") || lowerText.includes("compound")))
+          ) {
+            if (selectedTax) {
+              return processAccountPastedText(text);
+            }
+          }
+
+          processPastedText(text);
+        } catch (err) {
+          console.error("Ctrl+V readText error:", err);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [salesTaxes, clipboard, statesMaster, countryOptions, selectedTax, activeSubTab, accountClipboard]);
 
   const handleDiscard = () => {
     useDraftStore.getState().clearDraft("manage-sales-taxes");
@@ -1479,30 +1809,355 @@ export const ManageSalesTaxes = () => {
     setAccountCurrentIndex(0);
   };
 
-  const handleAccountCopy = () => {
-    if (!selectedAccount) return toast.warn("Select an account row to copy first.");
-    setAccountClipboard([selectedAccount]);
-    toast.success("Account record copied.");
+  const handleAccountCopy = async () => {
+    if (!selectedTax) return;
+    const accs = selectedTax.accounts || [];
+    const rowsToCopy = isAccountFormView
+      ? (selectedAccount ? [selectedAccount] : [])
+      : (selectedAccountKeys.size > 0
+          ? accs.filter((a) => selectedAccountKeys.has(getAccountKey(a)))
+          : (selectedAccount ? [selectedAccount] : []));
+
+    if (rowsToCopy.length === 0) {
+      return toast.warn("Select at least one account record to copy.");
+    }
+
+    setAccountClipboard([...rowsToCopy]);
+
+    const header = [
+      "Account",
+      "Account Name",
+      "Organization",
+      "Organization Name",
+      "Tax Type",
+      "Tax Rate",
+      "Compound",
+      "Effective Tax Rate",
+      "Recoverable",
+      "Recoverable Account",
+      "Recoverable Org",
+      "Suspense Account",
+      "Suspense Org"
+    ].join("\t");
+
+    const tsvLines = rowsToCopy.map((r) => {
+      const acctObj = accountsMaster.find((a) => a.acctId === r.account);
+      const orgObj = organizationsMaster.find((o) => o.orgId === r.organization);
+      const acc = r.account ?? "";
+      const accDesc = r.accountDesc || acctObj?.acctName || acctObj?.acct_name || "";
+      const org = r.organization ?? "";
+      const orgDesc = r.orgDesc || orgObj?.orgName || orgObj?.org_name || "";
+      const taxType = r.taxType ?? "SALES/USE";
+      const taxRate = r.taxRate ?? "";
+      const compound = r.compoundTax ? "Y" : "N";
+      const effRate = r.effectiveTaxRate ?? "";
+      const rec = r.recoverable ?? "N";
+      const recAcc = r.recAccount ?? "";
+      const recOrg = r.recOrg ?? "";
+      const suspAcc = r.suspenseAccount ?? "";
+      const suspOrg = r.suspenseOrg ?? "";
+      return `${acc}\t${accDesc}\t${org}\t${orgDesc}\t${taxType}\t${taxRate}\t${compound}\t${effRate}\t${rec}\t${recAcc}\t${recOrg}\t${suspAcc}\t${suspOrg}`;
+    });
+    const tsvContent = [header, ...tsvLines].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(tsvContent);
+    } catch (clipErr) {
+      console.warn("Clipboard writeText not permitted", clipErr);
+    }
+
+    toast.success(`${rowsToCopy.length} account record(s) copied to clipboard`);
   };
 
-  const handleAccountPaste = () => {
-    if (!selectedTax || accountClipboard.length === 0) return toast.warn("Nothing to paste.");
-    const target = accountClipboard[0];
-    const tempId = `ACC_${Date.now()}`;
-    const pastedRow = {
-      ...target,
-      account: `${target.account}-C`,
-      tempId,
-      uniqueKey: tempId,
-      isNew: true,
-      isDirty: true
-    };
-    const updatedAccs = [pastedRow, ...(selectedTax.accounts || [])];
+  const processAccountPastedText = (text) => {
+    if (!selectedTax) return;
+    if (!text || !text.trim()) {
+      return toast.warn("Clipboard is empty.");
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    if (lines.length === 0) return toast.warn("No data to paste.");
+
+    const headerKeys = [
+      "account", "account name", "acct", "acct name", "acct_id",
+      "organization", "organization name", "org", "org name", "org_id",
+      "tax type", "taxtype", "tax_type",
+      "tax rate", "taxrate", "tax_rate",
+      "compound", "compound tax", "compoundtax",
+      "effective tax rate", "effective rate", "effectivetaxrate",
+      "recoverable", "acct recov pct",
+      "recoverable account", "rec account", "recaccount",
+      "recoverable org", "rec org", "recorg",
+      "suspense account", "suspenseaccount",
+      "suspense org", "suspenseorg"
+    ];
+
+    const firstLineCells = lines[0]
+      .split("\t")
+      .map((cell) => cell.replace(/^"|"$/g, "").trim().toLowerCase());
+    const isHeaderRow = firstLineCells.some((cell) =>
+      headerKeys.some((k) => cell === k || cell.includes(k))
+    );
+
+    const dataLines = isHeaderRow ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+      return toast.warn("No data rows found to paste.");
+    }
+
+    let accIdx = -1, accDescIdx = -1, orgIdx = -1, orgDescIdx = -1;
+    let taxTypeIdx = -1, taxRateIdx = -1, compoundIdx = -1, effRateIdx = -1;
+    let recIdx = -1, recAccIdx = -1, recOrgIdx = -1, suspAccIdx = -1, suspOrgIdx = -1;
+
+    if (isHeaderRow) {
+      firstLineCells.forEach((c, idx) => {
+        if (c.includes("rec") && c.includes("acc")) recAccIdx = idx;
+        else if (c.includes("rec") && c.includes("org")) recOrgIdx = idx;
+        else if (c.includes("susp") && c.includes("acc")) suspAccIdx = idx;
+        else if (c.includes("susp") && c.includes("org")) suspOrgIdx = idx;
+        else if (c.includes("effective")) effRateIdx = idx;
+        else if (c.includes("compound")) compoundIdx = idx;
+        else if (c.includes("type")) taxTypeIdx = idx;
+        else if (c.includes("rate")) taxRateIdx = idx;
+        else if (c.includes("recoverable")) recIdx = idx;
+        else if (c.includes("org") && (c.includes("name") || c.includes("desc"))) orgDescIdx = idx;
+        else if (c.includes("org")) orgIdx = idx;
+        else if (c.includes("acc") && (c.includes("name") || c.includes("desc"))) accDescIdx = idx;
+        else if (c.includes("acc") || c.includes("acct")) accIdx = idx;
+      });
+    } else {
+      accIdx = 0;
+      accDescIdx = 1;
+      orgIdx = 2;
+      orgDescIdx = 3;
+      taxTypeIdx = 4;
+      taxRateIdx = 5;
+      compoundIdx = 6;
+      effRateIdx = 7;
+      recIdx = 8;
+      recAccIdx = 9;
+      recOrgIdx = 10;
+      suspAccIdx = 11;
+      suspOrgIdx = 12;
+    }
+
+    const currentAccs = selectedTax.accounts || [];
+    const existingAccKeys = new Set(
+      currentAccs
+        .filter((r) => !r.tempId && r.account)
+        .map((r) => `${String(r.account).trim().toLowerCase()}_${String(r.organization || "").trim().toLowerCase()}`)
+    );
+
+    const isTruthy = (v) => ["true", "y", "yes", "1", "t"].includes(String(v || "").toLowerCase().trim());
+
+    const pastedRows = [];
+
+    dataLines.forEach((line, i) => {
+      const cells = line.split("\t").map((c) => c.replace(/^"|"$/g, "").trim());
+
+      const rawAcc = accIdx !== -1 && accIdx < cells.length ? cells[accIdx] : (cells[0] || "");
+      const rawAccDesc = accDescIdx !== -1 && accDescIdx < cells.length ? cells[accDescIdx] : (cells[1] || "");
+      const rawOrg = orgIdx !== -1 && orgIdx < cells.length ? cells[orgIdx] : (cells[2] || "");
+      const rawOrgDesc = orgDescIdx !== -1 && orgDescIdx < cells.length ? cells[orgDescIdx] : (cells[3] || "");
+      const rawTaxType = taxTypeIdx !== -1 && taxTypeIdx < cells.length ? cells[taxTypeIdx] : (cells[4] || "SALES/USE");
+      const rawTaxRate = taxRateIdx !== -1 && taxRateIdx < cells.length ? cells[taxRateIdx] : (cells[5] || "0.00");
+      const rawCompound = compoundIdx !== -1 && compoundIdx < cells.length ? cells[compoundIdx] : (cells[6] || "N");
+      const rawEffRate = effRateIdx !== -1 && effRateIdx < cells.length ? cells[effRateIdx] : (cells[7] || rawTaxRate || "0.00");
+      const rawRec = recIdx !== -1 && recIdx < cells.length ? cells[recIdx] : (cells[8] || "N");
+      const rawRecAcc = recAccIdx !== -1 && recAccIdx < cells.length ? cells[recAccIdx] : (cells[9] || "");
+      const rawRecOrg = recOrgIdx !== -1 && recOrgIdx < cells.length ? cells[recOrgIdx] : (cells[10] || "");
+      const rawSuspAcc = suspAccIdx !== -1 && suspAccIdx < cells.length ? cells[suspAccIdx] : (cells[11] || "");
+      const rawSuspOrg = suspOrgIdx !== -1 && suspOrgIdx < cells.length ? cells[suspOrgIdx] : (cells[12] || "");
+
+      if (!rawAcc && !rawOrg) return;
+
+      const accTempId = `ACC_PASTE_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+
+      let targetAcc = rawAcc;
+      if (rawAcc && existingAccKeys.has(`${rawAcc.toLowerCase()}_${rawOrg.toLowerCase()}`)) {
+        targetAcc = `${rawAcc}-C`;
+      }
+
+      const acctObj = accountsMaster.find((a) => String(a.acctId || a.acct_id) === String(targetAcc));
+      const resolvedAccDesc = rawAccDesc || acctObj?.acctName || acctObj?.acct_name || "";
+
+      const orgObj = organizationsMaster.find((o) => String(o.orgId || o.org_id) === String(rawOrg));
+      const resolvedOrgDesc = rawOrgDesc || orgObj?.orgName || orgObj?.org_name || "";
+
+      pastedRows.push({
+        ...initialAccountState,
+        account: targetAcc,
+        accountDesc: resolvedAccDesc,
+        organization: rawOrg,
+        orgDesc: resolvedOrgDesc,
+        taxType: rawTaxType || "SALES/USE",
+        taxRate: rawTaxRate || "0.00",
+        compoundTax: isTruthy(rawCompound),
+        effectiveTaxRate: rawEffRate || rawTaxRate || "0.00",
+        recoverable: rawRec || "N",
+        recAccount: rawRecAcc,
+        recOrg: rawRecOrg,
+        suspenseAccount: rawSuspAcc,
+        suspenseOrg: rawSuspOrg,
+        tempId: accTempId,
+        uniqueKey: accTempId,
+        isNew: true,
+        isDirty: true,
+      });
+    });
+
+    if (pastedRows.length === 0) {
+      return toast.warn("No valid account rows parsed from clipboard.");
+    }
+
+    const updatedAccs = [...pastedRows, ...currentAccs];
     updateSelectedTax({ accounts: updatedAccs });
-    setSelectedAccount(pastedRow);
-    setSelectedAccountKeys(new Set());
+    setSelectedAccount(pastedRows[0]);
+    setSelectedAccountKeys(new Set([getAccountKey(pastedRows[0])]));
     setAccountCurrentIndex(0);
-    toast.success("Account record pasted successfully.");
+    toast.success(`${pastedRows.length} account record(s) pasted successfully.`);
+  };
+
+  const handleAccountPaste = async () => {
+    if (!selectedTax) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.includes("\t") || text.includes("\n") || text.trim())) {
+        return processAccountPastedText(text);
+      }
+    } catch (err) {
+      console.warn("navigator.clipboard.readText fallback to internal accountClipboard", err);
+    }
+
+    if (!accountClipboard || accountClipboard.length === 0) {
+      return toast.warn("Clipboard is empty. Copy an account first.");
+    }
+
+    const pasted = accountClipboard.map((target, idx) => {
+      const tempId = `ACC_PASTE_${Date.now()}_${idx}`;
+      return {
+        ...target,
+        account: target.account ? `${target.account}-C` : "",
+        tempId,
+        uniqueKey: tempId,
+        isNew: true,
+        isDirty: true,
+      };
+    });
+
+    const updatedAccs = [...pasted, ...(selectedTax.accounts || [])];
+    updateSelectedTax({ accounts: updatedAccs });
+    setSelectedAccount(pasted[0]);
+    setSelectedAccountKeys(new Set([getAccountKey(pasted[0])]));
+    setAccountCurrentIndex(0);
+    toast.success(`${pasted.length} account record(s) pasted successfully.`);
+  };
+
+  // Find & Replace Handlers for Accounts
+  const handleAccountFind = () => {
+    if (!selectedTax) return;
+    const accs = selectedTax.accounts || [];
+    if (!accountFindValue.trim()) {
+      setAccountFilteredGroups([]);
+      return toast.info("Search filter cleared.");
+    }
+    const term = accountFindValue.toLowerCase().trim();
+    const matches = accs.filter((row) => {
+      const enriched = {
+        ...row,
+        accountDesc: row.accountDesc || accountsMaster.find((a) => a.acctId === row.account)?.acctName || "",
+        orgDesc: row.orgDesc || organizationsMaster.find((o) => o.orgId === row.organization)?.orgName || "",
+      };
+      if (accountSearchColumn !== "all") {
+        return String(enriched[accountSearchColumn] ?? "").toLowerCase().includes(term);
+      }
+      return accountColumns.some((col) => {
+        const val = enriched[col.key || col.id];
+        return val !== undefined && val !== null && String(val).toLowerCase().includes(term);
+      });
+    });
+
+    setAccountFilteredGroups(matches);
+    if (matches.length === 0) {
+      toast.warn("No matching records found.");
+    } else {
+      setSelectedAccountKeys(new Set([getAccountKey(matches[0])]));
+      setSelectedAccount(matches[0]);
+      const idx = accs.findIndex((a) => getAccountKey(a) === getAccountKey(matches[0]));
+      setAccountCurrentIndex(idx >= 0 ? idx : 0);
+      toast.success(`Found ${matches.length} matching record(s).`);
+    }
+  };
+
+  const handleAccountReplaceAll = () => {
+    if (!selectedTax) return;
+    if (accountSearchColumn === "account" || accountSearchColumn === "organization") {
+      return toast.warn("Account / Organization keys cannot be modified via Replace.");
+    }
+    if (!accountFindValue.trim()) {
+      return toast.warn("Please enter a term to find.");
+    }
+    const term = accountFindValue.trim();
+    let replaceCount = 0;
+
+    const currentAccs = selectedTax.accounts || [];
+    const targetList = accountFilteredGroups.length > 0 ? accountFilteredGroups : currentAccs;
+    const targetKeys = new Set(targetList.map((r) => getAccountKey(r)));
+
+    const updatedAccs = currentAccs.map((row) => {
+      if (!targetKeys.has(getAccountKey(row))) return row;
+
+      let changed = false;
+      const updatedRow = { ...row };
+
+      const fieldsToCheck =
+        accountSearchColumn === "all"
+          ? accountColumns
+              .filter((c) => c.key !== "account" && c.key !== "organization" && c.type !== "checkbox" && !c.readOnly)
+              .map((c) => c.key || c.id)
+          : [accountSearchColumn];
+
+      fieldsToCheck.forEach((colKey) => {
+        if (colKey === "account" || colKey === "organization") return;
+        if (typeof updatedRow[colKey] === "string" && updatedRow[colKey].toLowerCase().includes(term.toLowerCase())) {
+          const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+          updatedRow[colKey] = updatedRow[colKey].replace(regex, accountReplaceValue);
+          changed = true;
+          replaceCount++;
+        }
+      });
+
+      if (changed) {
+        updatedRow.isDirty = true;
+        return updatedRow;
+      }
+      return row;
+    });
+
+    if (replaceCount > 0) {
+      updateSelectedTax({ accounts: updatedAccs });
+      if (selectedAccount) {
+        const found = updatedAccs.find((r) => getAccountKey(r) === getAccountKey(selectedAccount));
+        if (found) {
+          setSelectedAccount(found);
+          setSelectedAccountKeys(new Set([getAccountKey(found)]));
+        }
+      }
+      if (accountFilteredGroups.length > 0) {
+        setAccountFilteredGroups(accountFilteredGroups.map((fg) => updatedAccs.find((u) => getAccountKey(u) === getAccountKey(fg)) || fg));
+      }
+      toast.success(`Replaced ${replaceCount} occurrence(s).`);
+    } else {
+      toast.warn("No occurrences found to replace.");
+    }
+  };
+
+  const handleAccountClearFind = () => {
+    setAccountFindValue("");
+    setAccountReplaceValue("");
+    setAccountFilteredGroups([]);
   };
 
   const handleAccountDelete = async () => {
@@ -1667,7 +2322,14 @@ export const ManageSalesTaxes = () => {
         const term = searchValue.toLowerCase().trim();
         return (
           String(c.taxCode || "").toLowerCase().includes(term) ||
-          String(c.description || "").toLowerCase().includes(term)
+          String(c.description || "").toLowerCase().includes(term) ||
+          String(c.stateProvince || "").toLowerCase().includes(term) ||
+          String(c.stateName || "").toLowerCase().includes(term) ||
+          String(c.country || "").toLowerCase().includes(term) ||
+          String(c.countryName || "").toLowerCase().includes(term) ||
+          String(c.compositeTaxRate || "").toLowerCase().includes(term) ||
+          String(c.certificateNo || "").toLowerCase().includes(term) ||
+          String(c.modifiedBy || "").toLowerCase().includes(term)
         );
       }) : salesTaxes
     );
@@ -1682,6 +2344,23 @@ export const ManageSalesTaxes = () => {
         : String(valB).localeCompare(String(valA), undefined, { numeric: true });
     });
   }, [salesTaxes, filteredGroups, searchValue, sortColumn, sortDirection]);
+
+  // Global search sync with active record in Form View
+  useEffect(() => {
+    if (searchValue && displaySalesTaxes.length > 0) {
+      const isCurrentInDisplay = displaySalesTaxes.some(
+        (r) => getTaxKey(r) === getTaxKey(selectedTax),
+      );
+      if (!isCurrentInDisplay) {
+        setSelectedTax(displaySalesTaxes[0]);
+        setSelectedTaxCodes(new Set([getTaxKey(displaySalesTaxes[0])]));
+        const accs = displaySalesTaxes[0].accounts || [];
+        setSelectedAccount(accs[0] || null);
+        setSelectedAccountKeys(accs[0] ? new Set([getAccountKey(accs[0])]) : new Set());
+        setAccountCurrentIndex(0);
+      }
+    }
+  }, [searchValue, displaySalesTaxes]);
 
   // --- Draft Store Hydration on Mount ---
   useEffect(() => {
@@ -1705,6 +2384,8 @@ export const ManageSalesTaxes = () => {
       if (draft.selectedTaxCodes)
         setSelectedTaxCodes(new Set(draft.selectedTaxCodes));
       if (draft.selectedAccount) setSelectedAccount(draft.selectedAccount);
+      if (draft.selectedAccountKeys)
+        setSelectedAccountKeys(new Set(draft.selectedAccountKeys));
       if (typeof draft.isFormView === "boolean") setIsFormView(draft.isFormView);
       if (typeof draft.isAccountFormView === "boolean")
         setIsAccountFormView(draft.isAccountFormView);
@@ -1719,6 +2400,7 @@ export const ManageSalesTaxes = () => {
   const selectedTaxRef = useRef(selectedTax);
   const selectedTaxCodesRef = useRef(selectedTaxCodes);
   const selectedAccountRef = useRef(selectedAccount);
+  const selectedAccountKeysRef = useRef(selectedAccountKeys);
   const isFormViewRef = useRef(isFormView);
   const isAccountFormViewRef = useRef(isAccountFormView);
   const activeSubTabRef = useRef(activeSubTab);
@@ -1728,6 +2410,7 @@ export const ManageSalesTaxes = () => {
     selectedTaxRef.current = selectedTax;
     selectedTaxCodesRef.current = selectedTaxCodes;
     selectedAccountRef.current = selectedAccount;
+    selectedAccountKeysRef.current = selectedAccountKeys;
     isFormViewRef.current = isFormView;
     isAccountFormViewRef.current = isAccountFormView;
     activeSubTabRef.current = activeSubTab;
@@ -1745,6 +2428,7 @@ export const ManageSalesTaxes = () => {
         selectedTax,
         selectedTaxCodes: Array.from(selectedTaxCodes),
         selectedAccount,
+        selectedAccountKeys: Array.from(selectedAccountKeys),
         isFormView,
         isAccountFormView,
         activeSubTab,
@@ -1757,6 +2441,7 @@ export const ManageSalesTaxes = () => {
     selectedTax,
     selectedTaxCodes,
     selectedAccount,
+    selectedAccountKeys,
     isFormView,
     isAccountFormView,
     activeSubTab,
@@ -1780,6 +2465,7 @@ export const ManageSalesTaxes = () => {
           selectedTax: selectedTaxRef.current,
           selectedTaxCodes: Array.from(selectedTaxCodesRef.current),
           selectedAccount: selectedAccountRef.current,
+          selectedAccountKeys: Array.from(selectedAccountKeysRef.current),
           isFormView: isFormViewRef.current,
           isAccountFormView: isAccountFormViewRef.current,
           activeSubTab: activeSubTabRef.current,
@@ -1792,7 +2478,46 @@ export const ManageSalesTaxes = () => {
 
   const visibleAccounts = selectedTax ? (selectedTax.accounts || []) : [];
 
-  const enrichedVisibleAccounts = visibleAccounts.map(acc => {
+  const displayAccounts = useMemo(() => {
+    const base = accountFilteredGroups.length > 0 ? accountFilteredGroups : (
+      accountSearchValue.trim() ? (selectedTax?.accounts || []).filter((a) => {
+        const term = accountSearchValue.toLowerCase().trim();
+        const acctObj = accountsMaster.find((ac) => ac.acctId === a.account);
+        const orgObj = organizationsMaster.find((o) => o.orgId === a.organization);
+        const accDesc = a.accountDesc || acctObj?.acctName || acctObj?.acct_name || "";
+        const orgDesc = a.orgDesc || orgObj?.orgName || orgObj?.org_name || "";
+        return (
+          String(a.account || "").toLowerCase().includes(term) ||
+          String(accDesc).toLowerCase().includes(term) ||
+          String(a.organization || "").toLowerCase().includes(term) ||
+          String(orgDesc).toLowerCase().includes(term) ||
+          String(a.taxType || "").toLowerCase().includes(term) ||
+          String(a.taxRate || "").toLowerCase().includes(term) ||
+          String(a.effectiveTaxRate || "").toLowerCase().includes(term) ||
+          String(a.recAccount || "").toLowerCase().includes(term) ||
+          String(a.recOrg || "").toLowerCase().includes(term) ||
+          String(a.suspenseAccount || "").toLowerCase().includes(term) ||
+          String(a.suspenseOrg || "").toLowerCase().includes(term)
+        );
+      }) : (selectedTax?.accounts || [])
+    );
+    return base;
+  }, [selectedTax, accountFilteredGroups, accountSearchValue, accountsMaster, organizationsMaster]);
+
+  useEffect(() => {
+    if (accountSearchValue && displayAccounts.length > 0) {
+      const isCurrentInDisplay = displayAccounts.some(
+        (r) => getAccountKey(r) === getAccountKey(selectedAccount),
+      );
+      if (!isCurrentInDisplay) {
+        setSelectedAccount(displayAccounts[0]);
+        setSelectedAccountKeys(new Set([getAccountKey(displayAccounts[0])]));
+        setAccountCurrentIndex(0);
+      }
+    }
+  }, [accountSearchValue, displayAccounts]);
+
+  const enrichedVisibleAccounts = displayAccounts.map(acc => {
     const acctObj = accountsMaster.find((a) => a.acctId === acc.account);
     const resolvedAccountDesc = acc.accountDesc || acctObj?.acctName || acctObj?.acct_name || "";
     
@@ -1820,16 +2545,16 @@ export const ManageSalesTaxes = () => {
     <div className="salestax-page p-4 space-y-4 font-inter text-[#1f2937]">
       <style>{`
         .salestax-page { font-size:12px; color:#1f2937; }
-        .salestax-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #d5dfeb; border-radius:7px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .salestax-page .voucher-head-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #d5dfeb; border-radius:6px; background:#fff; color:#344a63; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
         .salestax-page .voucher-head-btn:hover:not(:disabled) { background:#f5f8fb; border-color:#b9c8d8; }
         .salestax-page .voucher-head-btn:disabled { opacity:0.4; cursor:not-allowed; }
-        .salestax-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 12px; border:1px solid #1677e8; border-radius:7px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
+        .salestax-page .voucher-primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:28px; padding:0 10px; border:1px solid #1677e8; border-radius:6px; background:#1677e8; color:#fff; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.15s ease; }
         .salestax-page .voucher-primary-btn:hover:not(:disabled) { background:#125bc3; border-color:#125bc3; }
-        .salestax-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:30px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; transition:all 0.15s ease; }
+        .salestax-page .voucher-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border:0; border-right:1px solid #d5dfeb; background:#f5f8fb; color:#718096; cursor:pointer; transition:all 0.15s ease; }
         .salestax-page .voucher-nav-btn:last-child { border-right:0; }
         .salestax-page .voucher-nav-btn:hover:not(:disabled) { background:#eaf1f7; color:#17414d; }
         .salestax-page .voucher-nav-btn:disabled { opacity:0.5; cursor:not-allowed; }
-        .salestax-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:30px; padding:0 8px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
+        .salestax-page .voucher-count { display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:28px; padding:0 6px; background:#fff; color:#17414d; font-size:11px; font-weight:700; }
         .td-input[readonly] {
           background-color: #f8fafc !important;
           color: #94a3b8 !important;
@@ -1880,6 +2605,7 @@ export const ManageSalesTaxes = () => {
             }
           }}
           currentIndex={currentIndex}
+          onCloseScreen={handleCloseScreen}
         />
 
         {/* Find & Replace Bar (Available in both Form and Table views) */}
@@ -2209,13 +2935,15 @@ export const ManageSalesTaxes = () => {
           <SalesTaxToolbar
             isFormView={isAccountFormView}
             handleNavigate={handleAccountNavigate}
-            totalRecords={visibleAccounts.length}
+            totalRecords={displayAccounts.length}
             selectedRow={selectedAccount}
             selectedCount={selectedAccountKeys.size}
             searchValue={accountSearchValue}
             setSearchValue={setAccountSearchValue}
             loading={loading}
             clipboard={accountClipboard}
+            showFindReplace={showAccountFindReplace}
+            onToggleFindReplace={() => setShowAccountFindReplace(!showAccountFindReplace)}
             actions={{
               onAdd: handleAccountAdd,
               onSave: handleSaveAll,
@@ -2224,9 +2952,9 @@ export const ManageSalesTaxes = () => {
               onClear: handleDiscard,
               onPaste: handleAccountPaste,
               onToggleView: () => {
-                if (!isAccountFormView && !selectedAccount && visibleAccounts.length > 0) {
-                  setSelectedAccount(visibleAccounts[0]);
-                  setSelectedAccountKeys(new Set([getAccountKey(visibleAccounts[0])]));
+                if (!isAccountFormView && !selectedAccount && displayAccounts.length > 0) {
+                  setSelectedAccount(displayAccounts[0]);
+                  setSelectedAccountKeys(new Set([getAccountKey(displayAccounts[0])]));
                 }
                 setIsAccountFormView(!isAccountFormView);
               }
@@ -2234,6 +2962,93 @@ export const ManageSalesTaxes = () => {
             currentIndex={accountCurrentIndex}
             buttonsDisable={["save"]}
           />
+
+          {/* Account Find & Replace Bar */}
+          {showAccountFindReplace && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-top-1 duration-150 mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-slate-600">In:</span>
+                  <select
+                    value={accountSearchColumn}
+                    onChange={(e) => setAccountSearchColumn(e.target.value)}
+                    className="px-2 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-700 outline-none focus:border-[#1677e8]"
+                  >
+                    <option value="all">All Columns</option>
+                    {accountColumns.map((col) => (
+                      <option key={col.key || col.id} value={col.key || col.id}>
+                        {col.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Find..."
+                    value={accountFindValue}
+                    onChange={(e) => setAccountFindValue(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAccountFind()}
+                    className="px-2.5 py-1 text-[11px] bg-white border border-slate-300 rounded font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#1677e8] w-36"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    placeholder="Replace with..."
+                    value={accountReplaceValue}
+                    disabled={accountSearchColumn === "account" || accountSearchColumn === "organization"}
+                    onChange={(e) => setAccountReplaceValue(e.target.value)}
+                    className={`px-2.5 py-1 text-[11px] border border-slate-300 rounded font-medium outline-none w-36 ${
+                      accountSearchColumn === "account" || accountSearchColumn === "organization"
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed placeholder:text-slate-300"
+                        : "bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#1677e8]"
+                    }`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAccountFind}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-[#1677e8] bg-blue-50 hover:bg-blue-100 border border-[#1677e8]/30 rounded cursor-pointer transition-colors"
+                >
+                  Find / Filter
+                </button>
+
+                <button
+                  type="button"
+                  disabled={accountSearchColumn === "account" || accountSearchColumn === "organization"}
+                  onClick={handleAccountReplaceAll}
+                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-colors ${
+                    accountSearchColumn === "account" || accountSearchColumn === "organization"
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "text-white bg-[#1677e8] hover:bg-[#125bc3] cursor-pointer"
+                  }`}
+                >
+                  Replace All
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAccountClearFind}
+                  className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/70 border border-slate-200 rounded cursor-pointer transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAccountFindReplace(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                title="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {isAccountFormView && (
             <div className="flex gap-2 mb-3 max-w-sm select-none mt-2 px-2">
